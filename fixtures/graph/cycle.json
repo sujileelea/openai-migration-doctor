@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0.0",
+  "synthetic": true,
+  "description": "Synthetic cycle only; it makes no upstream product claim.",
+  "language": "typescript",
+  "from": {
+    "kind": "sdk-symbol",
+    "id": "synthetic.symbol.alpha"
+  },
+  "edges": [
+    {
+      "id": "synthetic.symbol.alpha.to.beta",
+      "from": {
+        "kind": "sdk-symbol",
+        "id": "synthetic.symbol.alpha"
+      },
+      "to": {
+        "kind": "sdk-symbol",
+        "id": "synthetic.symbol.beta"
+      },
+      "sources": [
+        {
+          "url": "https://cycle-a.example.invalid/migration",
+          "title": "Synthetic cycle source A",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "languages": ["typescript"],
+      "behaviorChanges": [],
+      "automationTier": "A",
+      "reviewRequired": false
+    },
+    {
+      "id": "synthetic.symbol.beta.to.alpha",
+      "from": {
+        "kind": "sdk-symbol",
+        "id": "synthetic.symbol.beta"
+      },
+      "to": {
+        "kind": "sdk-symbol",
+        "id": "synthetic.symbol.alpha"
+      },
+      "sources": [
+        {
+          "url": "https://cycle-b.example.invalid/migration",
+          "title": "Synthetic cycle source B",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ],
+      "languages": ["typescript"],
+      "behaviorChanges": [],
+      "automationTier": "A",
+      "reviewRequired": false
+    }
+  ]
+}

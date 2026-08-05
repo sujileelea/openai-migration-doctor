@@ -86,6 +86,24 @@ describe("source lock", () => {
     await expect(loadMigrationRegistry(temporaryRoot)).rejects.toThrow("hash mismatch");
   });
 
+  it("hashes exact artifact bytes and rejects invalid UTF-8", async () => {
+    const temporaryRoot = await copyLockedData();
+    const relativePath = "data/sources/openai-deprecations-2026-08-05.json";
+    const artifactPath = path.join(temporaryRoot, relativePath);
+    const invalidUtf8 = Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0xc3, 0x28, 0x7d]);
+    await writeFile(artifactPath, invalidUtf8);
+
+    const lockPath = path.join(temporaryRoot, "migration.lock");
+    const lock = JSON.parse(await readFile(lockPath, "utf8"));
+    const artifact = lock.artifacts.find(
+      (candidate: { path: string }) => candidate.path === relativePath,
+    );
+    artifact.sha256 = sha256(invalidUtf8);
+    await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+
+    await expect(loadMigrationRegistry(temporaryRoot)).rejects.toThrow("not valid UTF-8");
+  });
+
   it("fails closed when migration.lock is missing", async () => {
     const temporaryRoot = await mkdtemp(path.join(tmpdir(), "migration-doctor-lock-"));
     temporaryDirectories.push(temporaryRoot);
@@ -111,7 +129,7 @@ describe("source lock", () => {
     );
   });
 
-  it("fails closed when sources recommend competing destinations", async () => {
+  it("preserves competing destinations for graph-level review", async () => {
     const temporaryRoot = await copyLockedData();
     await addMigrationArtifact(temporaryRoot, "competing-destination.json", (record) => {
       record.edge.id = "synthetic.competing-destination";
@@ -119,9 +137,12 @@ describe("source lock", () => {
       record.edge.to.displayName = "Synthetic other destination";
     });
 
-    await expect(loadMigrationRegistry(temporaryRoot)).rejects.toThrow(
-      "conflicting migration destinations",
-    );
+    const registry = await loadMigrationRegistry(temporaryRoot);
+
+    expect(registry.edges.map((edge) => edge.to?.id)).toEqual([
+      "gpt-4o-mini-transcribe-2025-12-15",
+      "synthetic-other-destination",
+    ]);
   });
 
   it("requires an edge source reference to match the locked title", async () => {

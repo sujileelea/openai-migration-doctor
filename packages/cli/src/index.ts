@@ -9,6 +9,7 @@ import {
   loadMigrationRegistry,
   MigrationDoctorError,
   type Report,
+  type ScanResult,
   scanRepository,
   verifyPatchPlan,
 } from "@migration-doctor/core";
@@ -43,6 +44,19 @@ function formatOption(): Option {
   return new Option("--format <format>", "output format")
     .choices(["json", "markdown"])
     .default("markdown");
+}
+
+function hasInvalidGraph(scan: ScanResult): boolean {
+  return scan.graphIssues.some(
+    (issue) => issue.kind === "source-conflict" || issue.kind === "cycle",
+  );
+}
+
+function scanExitCode(scan: ScanResult): number {
+  if (hasInvalidGraph(scan)) {
+    return 4;
+  }
+  return scan.summary.blocking > 0 ? 1 : 0;
 }
 
 async function scanTarget(repository: string) {
@@ -91,7 +105,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
       commandExecuted = true;
       await runMeasured(async () => {
         const { scan } = await scanTarget(repository);
-        commandExitCode = scan.summary.blocking > 0 ? 1 : 0;
+        commandExitCode = scanExitCode(scan);
         return scan;
       }, options.format);
     });
@@ -106,7 +120,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
       await runMeasured(async () => {
         const { scan } = await scanTarget(repository);
         const report = createPlanReport(scan);
-        commandExitCode = scan.summary.blocking > 0 ? 1 : 0;
+        commandExitCode = scanExitCode(scan);
         return report;
       }, options.format);
     });
@@ -126,7 +140,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
         const { scan } = await scanTarget(repository);
         const planReport = createPlanReport(scan);
         const preview = await createPatchPreview(path.resolve(repository), scan, planReport.plan);
-        commandExitCode = scan.summary.blocking > 0 ? 1 : 0;
+        commandExitCode = scanExitCode(scan);
         return preview;
       }, options.format);
     });
@@ -150,7 +164,13 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
           registry,
           adapters,
         });
-        commandExitCode = report.verification.passed ? 0 : 5;
+        commandExitCode = hasInvalidGraph(scan)
+          ? 4
+          : planReport.plan.status === "blocked"
+            ? 1
+            : report.verification.passed
+              ? 0
+              : 5;
         return report;
       }, options.format);
     });

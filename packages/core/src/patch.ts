@@ -5,10 +5,11 @@ import { sha256 } from "./hash.js";
 import { resolveRepositoryFile } from "./repository.js";
 import {
   type PatchPlan,
+  PatchPlanSchema,
   type PatchPreview,
   type PatchPreviewFile,
   PatchPreviewSchema,
-  SCHEMA_VERSION,
+  REPORT_SCHEMA_VERSION,
   type ScanResult,
   type TextEdit,
 } from "./schemas.js";
@@ -61,13 +62,10 @@ export async function createPatchPreview(
   scan: ScanResult,
   plan: PatchPlan,
 ): Promise<PatchPreview> {
+  PatchPlanSchema.parse(plan);
   if (plan.sourceLockHash !== scan.sourceLockHash) {
     throw new MigrationError("Patch plan and scan use different source locks.");
   }
-  if (plan.status === "blocked") {
-    throw new MigrationError(`Patch plan is blocked: ${plan.abstentionReasons.join(" ")}`);
-  }
-
   const editsByFile = new Map<string, TextEdit[]>();
   for (const edit of plan.edits) {
     const group = editsByFile.get(edit.file) ?? [];
@@ -96,10 +94,11 @@ export async function createPatchPreview(
   }
 
   return PatchPreviewSchema.parse({
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: REPORT_SCHEMA_VERSION,
     kind: "migrate",
     sourceLockHash: scan.sourceLockHash,
     migrationEdges: scan.migrationEdges,
+    graphIssues: scan.graphIssues,
     findings: scan.findings,
     plan,
     files,

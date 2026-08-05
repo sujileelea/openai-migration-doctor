@@ -1,20 +1,17 @@
+import { canonicalJson } from "./canonical-json.js";
 import { compareStrings } from "./compare.js";
 import { SourceLockError } from "./errors.js";
+import { resolveMigrationPath } from "./graph.js";
 import { sha256 } from "./hash.js";
 import {
-  type MigrationEdge,
   type PatchPlan,
   PatchPlanSchema,
   type PlanReport,
   PlanReportSchema,
-  SCHEMA_VERSION,
+  REPORT_SCHEMA_VERSION,
   type ScanResult,
   type TextEdit,
 } from "./schemas.js";
-
-function resourceKey(resource: MigrationEdge["from"]): string {
-  return `${resource.kind}:${resource.id}`;
-}
 
 function compareEdits(left: TextEdit, right: TextEdit): number {
   return (
@@ -27,9 +24,15 @@ function compareEdits(left: TextEdit, right: TextEdit): number {
 
 export function createPatchPlan(scan: ScanResult): PatchPlan {
   const edgeById = new Map(scan.migrationEdges.map((edge) => [edge.id, edge]));
-  const deprecatedResources = new Set(scan.migrationEdges.map((edge) => resourceKey(edge.from)));
+  const graphIssueById = new Map(scan.graphIssues.map((issue) => [issue.id, issue]));
+  const referencedGraphIssueIds = new Set(
+    scan.findings.flatMap((finding) => finding.graphIssueIds),
+  );
   const edits: TextEdit[] = [];
-  const abstentionReasons: string[] = [];
+  const abstentionReasons = scan.graphIssues
+    .filter((issue) => issue.kind === "source-conflict" || issue.kind === "cycle")
+    .filter((issue) => !referencedGraphIssueIds.has(issue.id))
+    .map((issue) => `graph ${issue.id}: ${issue.message}`);
 
   for (const finding of scan.findings) {
     const edgeId = finding.migrationEdgeIds[0];
@@ -37,21 +40,77 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
     if (!edge) {
       throw new SourceLockError(`Finding ${finding.id} references an unknown migration edge.`);
     }
-    if (!edge.to) {
-      abstentionReasons.push(`${finding.id}: official migration destination is missing.`);
-      continue;
-    }
-    if (finding.remediation.replacement !== edge.to.id) {
+    if (edge.from.kind !== finding.resource.kind || edge.from.id !== finding.resource.id) {
       throw new SourceLockError(
-        `Finding ${finding.id} replacement does not match locked destination ${edge.to.id}.`,
+        `Finding ${finding.id} migration edge does not match detected resource ${finding.resource.kind}:${finding.resource.id}.`,
       );
     }
-    if (edge.automationTier !== "A" || finding.automationTier !== "A") {
-      abstentionReasons.push(`${finding.id}: migration is not eligible for a Tier A edit.`);
+    if (
+      finding.remediation.kind === "replace-string-literal" &&
+      (finding.resource.kind !== "model" || finding.evidence !== finding.resource.id)
+    ) {
+      throw new SourceLockError(
+        `Finding ${finding.id} replacement evidence does not match its detected model resource.`,
+      );
+    }
+    for (const referencedEdgeId of finding.migrationEdgeIds) {
+      if (!edgeById.has(referencedEdgeId)) {
+        throw new SourceLockError(
+          `Finding ${finding.id} references unknown migration edge ${referencedEdgeId}.`,
+        );
+      }
+    }
+
+    const resolution = resolveMigrationPath(
+      scan.migrationEdges,
+      finding.resource,
+      finding.language,
+    );
+    if (resolution.status === "unmapped") {
+      throw new SourceLockError(`Finding ${finding.id} references an unmapped migration resource.`);
+    }
+    if (
+      resolution.edgeIds.length !== finding.migrationEdgeIds.length ||
+      !resolution.edgeIds.every((id, index) => id === finding.migrationEdgeIds[index])
+    ) {
+      throw new SourceLockError(
+        `Finding ${finding.id} migration path does not match the locked graph resolution.`,
+      );
+    }
+
+    if (resolution.status === "blocked") {
+      const reportedIssue = graphIssueById.get(resolution.issue.id);
+      if (
+        finding.graphIssueIds.length !== 1 ||
+        finding.graphIssueIds[0] !== resolution.issue.id ||
+        !reportedIssue ||
+        canonicalJson(reportedIssue) !== canonicalJson(resolution.issue) ||
+        finding.remediation.kind !== "none"
+      ) {
+        throw new SourceLockError(
+          `Finding ${finding.id} does not preserve its blocked graph resolution.`,
+        );
+      }
+      abstentionReasons.push(`${finding.id}: ${resolution.issue.message}`);
       continue;
     }
-    if (deprecatedResources.has(resourceKey(edge.to))) {
-      abstentionReasons.push(`${finding.id}: recommended destination is deprecated in this lock.`);
+
+    if (finding.graphIssueIds.length > 0) {
+      throw new SourceLockError(`Finding ${finding.id} references an issue on a resolved path.`);
+    }
+    if (finding.remediation.kind === "none") {
+      abstentionReasons.push(
+        `${finding.id}: ${finding.abstentionReason ?? "no deterministic remediation is available."}`,
+      );
+      continue;
+    }
+    if (resolution.to.kind !== "model" || finding.remediation.replacement !== resolution.to.id) {
+      throw new SourceLockError(
+        `Finding ${finding.id} replacement does not match locked destination ${resolution.to.kind}:${resolution.to.id}.`,
+      );
+    }
+    if (resolution.automationTier !== "A" || finding.automationTier !== "A") {
+      abstentionReasons.push(`${finding.id}: migration is not eligible for a Tier A edit.`);
       continue;
     }
 
@@ -79,12 +138,14 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
 
   edits.sort(compareEdits);
   abstentionReasons.sort(compareStrings);
+  const plannedEdits = abstentionReasons.length > 0 ? [] : edits;
   const findingIds = scan.findings.map((finding) => finding.id).sort(compareStrings);
-  const allowedFiles = [...new Set(edits.map((edit) => edit.file))].sort(compareStrings);
-  const status = abstentionReasons.length > 0 ? "blocked" : edits.length > 0 ? "ready" : "no-op";
+  const allowedFiles = [...new Set(plannedEdits.map((edit) => edit.file))].sort(compareStrings);
+  const status =
+    abstentionReasons.length > 0 ? "blocked" : plannedEdits.length > 0 ? "ready" : "no-op";
 
   return PatchPlanSchema.parse({
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: REPORT_SCHEMA_VERSION,
     status,
     findingIds,
     allowedFiles,
@@ -98,16 +159,17 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
     ],
     requiresCodex: false,
     abstentionReasons,
-    edits,
+    edits: plannedEdits,
   });
 }
 
 export function createPlanReport(scan: ScanResult): PlanReport {
   return PlanReportSchema.parse({
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: REPORT_SCHEMA_VERSION,
     kind: "plan",
     sourceLockHash: scan.sourceLockHash,
     migrationEdges: scan.migrationEdges,
+    graphIssues: scan.graphIssues,
     findings: scan.findings,
     plan: createPatchPlan(scan),
   });

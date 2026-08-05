@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0.0",
+  "synthetic": true,
+  "description": "Synthetic conflicting guidance only; it makes no upstream product claim.",
+  "language": "typescript",
+  "from": {
+    "kind": "api",
+    "id": "synthetic-api-v1"
+  },
+  "edges": [
+    {
+      "id": "synthetic.api.to.replacement-a",
+      "from": {
+        "kind": "api",
+        "id": "synthetic-api-v1"
+      },
+      "to": {
+        "kind": "api",
+        "id": "synthetic-api-v2-a"
+      },
+      "sources": [
+        {
+          "url": "https://conflict-a.example.invalid/migration",
+          "title": "Synthetic migration source A",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "languages": ["typescript"],
+      "behaviorChanges": [],
+      "automationTier": "A",
+      "reviewRequired": false
+    },
+    {
+      "id": "synthetic.api.to.replacement-b",
+      "from": {
+        "kind": "api",
+        "id": "synthetic-api-v1"
+      },
+      "to": {
+        "kind": "api",
+        "id": "synthetic-api-v2-b"
+      },
+      "sources": [
+        {
+          "url": "https://conflict-b.example.invalid/migration",
+          "title": "Synthetic migration source B",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      ],
+      "languages": ["typescript"],
+      "behaviorChanges": [],
+      "automationTier": "B",
+      "reviewRequired": true
+    }
+  ]
+}

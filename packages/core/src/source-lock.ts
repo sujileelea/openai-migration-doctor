@@ -29,6 +29,14 @@ function parseJson(raw: string, label: string): unknown {
   }
 }
 
+function decodeUtf8(raw: Uint8Array, label: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(raw);
+  } catch (error) {
+    throw new SourceLockError(`${label} is not valid UTF-8.`, { cause: error });
+  }
+}
+
 async function resolveArtifact(projectRoot: string, relativePath: string): Promise<string> {
   const root = await realpath(projectRoot);
   const candidate = path.resolve(root, relativePath);
@@ -51,12 +59,13 @@ async function resolveArtifact(projectRoot: string, relativePath: string): Promi
 
 export async function loadMigrationRegistry(projectRoot: string): Promise<MigrationRegistry> {
   const lockPath = path.join(projectRoot, "migration.lock");
-  let lockRaw: string;
+  let lockBytes: Uint8Array;
   try {
-    lockRaw = await readFile(lockPath, "utf8");
+    lockBytes = await readFile(lockPath);
   } catch (error) {
     throw new SourceLockError(`Unable to read source lock at ${lockPath}.`, { cause: error });
   }
+  const lockRaw = decodeUtf8(lockBytes, "migration.lock");
 
   const parsedLock = SourceLockSchema.safeParse(parseJson(lockRaw, "migration.lock"));
   if (!parsedLock.success) {
@@ -78,22 +87,23 @@ export async function loadMigrationRegistry(projectRoot: string): Promise<Migrat
     seenPaths.add(artifact.path);
 
     const artifactPath = await resolveArtifact(projectRoot, artifact.path);
-    let raw: string;
+    let rawBytes: Uint8Array;
     try {
-      raw = await readFile(artifactPath, "utf8");
+      rawBytes = await readFile(artifactPath);
     } catch (error) {
       throw new SourceLockError(`Unable to read locked artifact ${artifact.path}.`, {
         cause: error,
       });
     }
 
-    const actualHash = sha256(raw);
+    const actualHash = sha256(rawBytes);
     if (actualHash !== artifact.sha256) {
       throw new SourceLockError(
         `Locked artifact hash mismatch for ${artifact.path}: expected ${artifact.sha256}, got ${actualHash}.`,
       );
     }
 
+    const raw = decodeUtf8(rawBytes, artifact.path);
     const value = parseJson(raw, artifact.path);
     if (artifact.kind === "source") {
       const parsed = SourceRecordSchema.safeParse(value);
@@ -134,27 +144,11 @@ export async function loadMigrationRegistry(projectRoot: string): Promise<Migrat
     }
   }
 
-  const destinationsByOrigin = new Map<string, Set<string>>();
-  for (const edge of edges) {
-    for (const language of edge.languages) {
-      const origin = `${edge.from.kind}:${edge.from.id}\u0000${language}`;
-      const destination = edge.to ? `${edge.to.kind}:${edge.to.id}` : "none";
-      const destinations = destinationsByOrigin.get(origin) ?? new Set<string>();
-      destinations.add(destination);
-      destinationsByOrigin.set(origin, destinations);
-      if (destinations.size > 1) {
-        throw new SourceLockError(
-          `Source lock contains conflicting migration destinations for ${edge.from.kind}:${edge.from.id} (${language}).`,
-        );
-      }
-    }
-  }
-
   sources.sort((left, right) => compareStrings(left.id, right.id));
   edges.sort((left, right) => compareStrings(left.id, right.id));
 
   return {
-    sourceLockHash: sha256(lockRaw),
+    sourceLockHash: sha256(lockBytes),
     sources,
     edges,
   };

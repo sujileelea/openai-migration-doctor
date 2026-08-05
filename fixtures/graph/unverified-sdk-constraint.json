@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0.0",
+  "synthetic": true,
+  "description": "Synthetic SDK constraint only; it makes no upstream product claim.",
+  "language": "typescript",
+  "from": {
+    "kind": "sdk-symbol",
+    "id": "synthetic.sdk.alpha"
+  },
+  "edges": [
+    {
+      "id": "synthetic.sdk.alpha.to.beta",
+      "from": {
+        "kind": "sdk-symbol",
+        "id": "synthetic.sdk.alpha"
+      },
+      "to": {
+        "kind": "sdk-symbol",
+        "id": "synthetic.sdk.beta"
+      },
+      "sources": [
+        {
+          "url": "https://sdk-constraint.example.invalid/migration",
+          "title": "Synthetic SDK-constrained migration source",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      ],
+      "languages": ["typescript"],
+      "sdkConstraints": ["synthetic-sdk >= 2.0.0"],
+      "behaviorChanges": [],
+      "automationTier": "A",
+      "reviewRequired": false
+    }
+  ]
+}

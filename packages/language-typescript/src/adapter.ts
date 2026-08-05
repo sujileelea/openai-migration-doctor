@@ -1,12 +1,15 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  type AdapterScanResult,
   AnalysisError,
   type Finding,
   type LanguageAdapter,
   listRepositoryFiles,
+  type MigrationResolution,
+  REPORT_SCHEMA_VERSION,
+  resolveMigrationPath,
   resolveRepositoryFile,
-  SCHEMA_VERSION,
   sha256,
 } from "@migration-doctor/core";
 import ts from "typescript";
@@ -188,8 +191,7 @@ function createBoundSource(relativeFile: string, content: string) {
 function scanSource(
   relativeFile: string,
   content: string,
-  edgeId: string,
-  replacement: string,
+  resolution: Exclude<MigrationResolution, { status: "unmapped" }>,
 ): Finding[] {
   const bound = createBoundSource(relativeFile, content);
   const parseErrors = bound.diagnostics.filter(
@@ -209,6 +211,30 @@ function scanSource(
 
   const fileHash = sha256(content);
   const findings: Finding[] = [];
+  const deterministicModelReplacement =
+    resolution.status === "resolved" &&
+    resolution.automationTier === "A" &&
+    resolution.to.kind === "model";
+  const findingKind =
+    resolution.status === "blocked" && resolution.issue.kind === "source-conflict"
+      ? "source-conflict"
+      : deterministicModelReplacement
+        ? "deprecated-usage"
+        : "migration-blocked";
+  const automationTier =
+    resolution.status === "blocked"
+      ? "C"
+      : resolution.to.kind !== "model"
+        ? "C"
+        : resolution.automationTier;
+  const abstentionReason =
+    resolution.status === "blocked"
+      ? resolution.issue.message
+      : resolution.to.kind !== "model"
+        ? `Terminal migration destination ${resolution.to.kind}:${resolution.to.id} is not a model literal.`
+        : resolution.automationTier !== "A"
+          ? `Migration path requires Tier ${resolution.automationTier} review.`
+          : undefined;
 
   function visit(node: ts.Node): void {
     if (ts.isCallExpression(node)) {
@@ -230,8 +256,19 @@ function scanSource(
           const endOffset = literal.getEnd() - 1;
           const position = sourceFile.getLineAndCharacterOfPosition(startOffset);
           findings.push({
-            schemaVersion: SCHEMA_VERSION,
-            id: sha256([RULE_ID, edgeId, relativeFile, startOffset, endOffset].join("\u0000")),
+            schemaVersion: REPORT_SCHEMA_VERSION,
+            id: sha256(
+              [
+                RULE_ID,
+                resolution.edgeIds.join("\u0001"),
+                relativeFile,
+                startOffset,
+                endOffset,
+              ].join("\u0000"),
+            ),
+            kind: findingKind,
+            language: "typescript",
+            resource: { kind: "model", id: SOURCE_MODEL },
             ruleId: RULE_ID,
             severity: "error",
             location: {
@@ -243,13 +280,19 @@ function scanSource(
             },
             fileHash,
             evidence: SOURCE_MODEL,
-            migrationEdgeIds: [edgeId],
+            migrationEdgeIds: resolution.edgeIds,
+            graphIssueIds: resolution.issue ? [resolution.issue.id] : [],
             confidence: "high",
-            automationTier: "A",
-            remediation: {
-              kind: "replace-string-literal",
-              replacement,
-            },
+            automationTier,
+            reviewRequired:
+              resolution.reviewRequired || !deterministicModelReplacement || automationTier !== "A",
+            ...(abstentionReason ? { abstentionReason } : {}),
+            remediation: deterministicModelReplacement
+              ? {
+                  kind: "replace-string-literal",
+                  replacement: resolution.to.id,
+                }
+              : { kind: "none" },
           });
         }
       }
@@ -265,18 +308,15 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
   readonly id = "typescript";
   readonly extensions = TYPESCRIPT_EXTENSIONS;
 
-  async scan(request: Parameters<LanguageAdapter["scan"]>[0]): Promise<Finding[]> {
-    const edge = request.migrationEdges.find(
-      (candidate) =>
-        candidate.from.kind === "model" &&
-        candidate.from.id === SOURCE_MODEL &&
-        candidate.to?.kind === "model" &&
-        candidate.languages.includes("typescript"),
+  async scan(request: Parameters<LanguageAdapter["scan"]>[0]): Promise<AdapterScanResult> {
+    const resolution = resolveMigrationPath(
+      request.migrationEdges,
+      { kind: "model", id: SOURCE_MODEL },
+      "typescript",
     );
-    if (!edge?.to) {
+    if (resolution.status === "unmapped") {
       throw new AnalysisError(`No locked TypeScript migration edge exists for ${SOURCE_MODEL}.`);
     }
-    const replacement = edge.to.id;
 
     const extensions = new Set<string>(this.extensions);
     let files: string[];
@@ -301,9 +341,13 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
         if (!content.includes(SOURCE_MODEL)) {
           return [];
         }
-        return scanSource(relativeFile, content, edge.id, replacement);
+        return scanSource(relativeFile, content, resolution);
       }),
     );
-    return findings.flat();
+    const normalizedFindings = findings.flat();
+    return {
+      findings: normalizedFindings,
+      graphIssues: normalizedFindings.length > 0 && resolution.issue ? [resolution.issue] : [],
+    };
   }
 }

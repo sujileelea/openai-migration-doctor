@@ -2,8 +2,15 @@ import { spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { MigrationEdge } from "@migration-doctor/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { fixturePath, PROJECT_ROOT } from "./helpers.js";
+import {
+  fixturePath,
+  PROJECT_ROOT,
+  syntheticSource,
+  syntheticTranscriptionConflict,
+  writeLockedRegistry,
+} from "./helpers.js";
 
 const CLI_PATH = path.join(PROJECT_ROOT, "packages/cli/dist/index.js");
 const temporaryDirectories: string[] = [];
@@ -22,6 +29,24 @@ function runCli(args: string[], environment: NodeJS.ProcessEnv = {}) {
     encoding: "utf8",
     env: { ...process.env, ...environment },
   });
+}
+
+async function createSyntheticHome(edge: MigrationEdge, sourceLabel: string): Promise<string> {
+  const home = await mkdtemp(path.join(tmpdir(), `migration-doctor-${sourceLabel}-home-`));
+  temporaryDirectories.push(home);
+  await writeLockedRegistry(home, edge.sources, [edge]);
+  return home;
+}
+
+function runBlockedCommands(home: string) {
+  const environment = { MIGRATION_DOCTOR_HOME: home };
+  const repository = fixturePath("direct-model-literal");
+  return {
+    scan: runCli(["scan", repository, "--format", "json"], environment),
+    plan: runCli(["plan", repository, "--format", "json"], environment),
+    migrate: runCli(["migrate", repository, "--format", "json"], environment),
+    verify: runCli(["verify", repository, "--format", "json"], environment),
+  };
 }
 
 describe("CLI exit-code contract", () => {
@@ -135,5 +160,114 @@ describe("CLI exit-code contract", () => {
 
     expect(result.status).toBe(4);
     expect(result.stderr).toContain("SOURCE_LOCK_INVALID");
+  });
+
+  it("returns 4 with a reviewable report from every command when sources conflict", async () => {
+    const home = await mkdtemp(path.join(tmpdir(), "migration-doctor-conflict-home-"));
+    temporaryDirectories.push(home);
+    const conflict = syntheticTranscriptionConflict();
+    await writeLockedRegistry(home, conflict.sources, conflict.edges);
+
+    const results = runBlockedCommands(home);
+
+    expect(Object.values(results).map((result) => result.status)).toEqual([4, 4, 4, 4]);
+    const report = JSON.parse(results.scan.stdout) as {
+      graphIssues: Array<{ kind: string; sources: unknown[]; reviewRequired: boolean }>;
+    };
+    expect(report.graphIssues).toEqual([
+      expect.objectContaining({
+        kind: "source-conflict",
+        sources: expect.arrayContaining([expect.any(Object), expect.any(Object)]),
+        reviewRequired: true,
+      }),
+    ]);
+    expect(JSON.parse(results.plan.stdout)).toMatchObject({
+      kind: "plan",
+      plan: { status: "blocked", edits: [] },
+    });
+    expect(JSON.parse(results.migrate.stdout)).toMatchObject({
+      kind: "migrate",
+      plan: { status: "blocked", edits: [] },
+      files: [],
+    });
+    expect(JSON.parse(results.verify.stdout)).toMatchObject({
+      kind: "verify",
+      plan: { status: "blocked", edits: [] },
+      verification: { passed: false, changedFiles: [] },
+    });
+  });
+
+  it("returns reportable exit 1 results when migration guidance has no destination", async () => {
+    const source = syntheticSource("missing-destination-cli", "c");
+    const home = await createSyntheticHome(
+      {
+        id: "synthetic.transcribe.destination-missing",
+        from: { kind: "model", id: "gpt-4o-mini-transcribe-2025-03-20" },
+        to: null,
+        sources: [source],
+        languages: ["typescript"],
+        behaviorChanges: [],
+        automationTier: "C",
+        reviewRequired: true,
+      },
+      "missing-destination",
+    );
+
+    const results = runBlockedCommands(home);
+    expect([results.plan.status, results.migrate.status, results.verify.status]).toEqual([1, 1, 1]);
+    expect(JSON.parse(results.plan.stdout)).toMatchObject({
+      kind: "plan",
+      graphIssues: [expect.objectContaining({ kind: "missing-destination" })],
+      plan: { status: "blocked", edits: [] },
+    });
+    expect(JSON.parse(results.migrate.stdout)).toMatchObject({
+      kind: "migrate",
+      plan: { status: "blocked", edits: [] },
+      files: [],
+    });
+    expect(JSON.parse(results.verify.stdout)).toMatchObject({
+      kind: "verify",
+      plan: { status: "blocked", edits: [] },
+      verification: { passed: false, changedFiles: [] },
+    });
+  });
+
+  it("returns reportable exit 1 results for a Tier B migration path", async () => {
+    const source = syntheticSource("tier-b-cli", "d");
+    const home = await createSyntheticHome(
+      {
+        id: "synthetic.transcribe.tier-b",
+        from: { kind: "model", id: "gpt-4o-mini-transcribe-2025-03-20" },
+        to: { kind: "model", id: "synthetic-transcribe-tier-b-target" },
+        sources: [source],
+        languages: ["typescript"],
+        behaviorChanges: ["Synthetic behavior review is required."],
+        automationTier: "B",
+        reviewRequired: true,
+      },
+      "tier-b",
+    );
+
+    const results = runBlockedCommands(home);
+    expect([results.plan.status, results.migrate.status, results.verify.status]).toEqual([1, 1, 1]);
+    expect(JSON.parse(results.plan.stdout)).toMatchObject({
+      kind: "plan",
+      findings: [
+        expect.objectContaining({
+          kind: "migration-blocked",
+          automationTier: "B",
+          remediation: { kind: "none" },
+        }),
+      ],
+      plan: { status: "blocked", edits: [] },
+    });
+    expect(JSON.parse(results.migrate.stdout)).toMatchObject({
+      kind: "migrate",
+      files: [],
+    });
+    expect(JSON.parse(results.verify.stdout)).toMatchObject({
+      kind: "verify",
+      verification: { passed: false, changedFiles: [] },
+    });
   });
 });

@@ -10,6 +10,7 @@ import {
   loadMigrationRegistry,
   MigrationError,
   scanRepository,
+  sha256,
   verifyPatchPlan,
 } from "@migration-doctor/core";
 import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
@@ -46,7 +47,7 @@ describe("deterministic TypeScript vertical slice", () => {
     const before = await hashRepositoryTree(root);
     const scan = await scanFixture("direct-model-literal");
 
-    expect(scan.summary).toEqual({ total: 1, blocking: 1 });
+    expect(scan.summary).toEqual({ total: 1, blocking: 1, graphIssues: 0 });
     expect(scan.findings[0]).toMatchObject({
       ruleId: "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20",
       evidence: "gpt-4o-mini-transcribe-2025-03-20",
@@ -72,7 +73,7 @@ describe("deterministic TypeScript vertical slice", () => {
   ])("does not report the %s negative fixture", async (name) => {
     const scan = await scanFixture(name);
     expect(scan.findings).toEqual([]);
-    expect(scan.summary).toEqual({ total: 0, blocking: 0 });
+    expect(scan.summary).toEqual({ total: 0, blocking: 0, graphIssues: 0 });
   });
 
   it("creates a byte-stable literal-only patch preview without mutating the source", async () => {
@@ -174,6 +175,75 @@ describe("deterministic TypeScript vertical slice", () => {
     };
 
     expect(() => createPlanReport(tampered)).toThrow("does not match locked destination");
+  });
+
+  it("rejects a finding redirected to an unrelated locked resource", async () => {
+    const scan = await scanFixture("direct-model-literal");
+    const finding = scan.findings[0];
+    const reviewedEdge = scan.migrationEdges[0];
+    expect(finding).toBeDefined();
+    expect(reviewedEdge).toBeDefined();
+    if (!finding || !reviewedEdge) {
+      return;
+    }
+
+    const unrelatedEdge = {
+      ...reviewedEdge,
+      id: "synthetic.unrelated-source.to.wrong-terminal",
+      from: { kind: "model" as const, id: "synthetic-unrelated-source" },
+      to: { kind: "model" as const, id: "synthetic-wrong-terminal" },
+    };
+    const tampered = {
+      ...scan,
+      migrationEdges: [...scan.migrationEdges, unrelatedEdge],
+      findings: [
+        {
+          ...finding,
+          resource: unrelatedEdge.from,
+          migrationEdgeIds: [unrelatedEdge.id],
+          remediation: {
+            kind: "replace-string-literal" as const,
+            replacement: unrelatedEdge.to.id,
+          },
+        },
+      ],
+    };
+
+    expect(() => createPlanReport(tampered)).toThrow(
+      "replacement evidence does not match its detected model resource",
+    );
+  });
+
+  it("drops every candidate edit when any finding requires abstention", async () => {
+    const root = fixturePath("direct-model-literal");
+    const scan = await scanFixture("direct-model-literal");
+    const finding = scan.findings[0];
+    expect(finding).toBeDefined();
+    if (!finding) {
+      return;
+    }
+
+    const blockedFinding = {
+      ...finding,
+      id: sha256("synthetic-blocked-copy"),
+      kind: "migration-blocked" as const,
+      automationTier: "B" as const,
+      reviewRequired: true,
+      abstentionReason: "Synthetic review is required.",
+      remediation: { kind: "none" as const },
+    };
+    const mixedScan = {
+      ...scan,
+      findings: [finding, blockedFinding],
+      summary: { ...scan.summary, total: 2, blocking: 2 },
+    };
+    const plan = createPlanReport(mixedScan).plan;
+    const preview = await createPatchPreview(root, mixedScan, plan);
+
+    expect(plan.status).toBe("blocked");
+    expect(plan.edits).toEqual([]);
+    expect(plan.allowedFiles).toEqual([]);
+    expect(preview.files).toEqual([]);
   });
 
   it("verifies a repository whose root name matches an excluded directory", async () => {

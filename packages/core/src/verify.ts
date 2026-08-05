@@ -15,7 +15,7 @@ import { scanRepository } from "./scan.js";
 import {
   type PatchPlan,
   type PatchPreview,
-  SCHEMA_VERSION,
+  REPORT_SCHEMA_VERSION,
   type ScanResult,
   type VerificationResult,
   type VerifyReport,
@@ -114,10 +114,11 @@ export async function verifyPatchPlan(request: VerifyPatchPlanRequest): Promise<
     ];
 
     return VerifyReportSchema.parse({
-      schemaVersion: SCHEMA_VERSION,
+      schemaVersion: REPORT_SCHEMA_VERSION,
       kind: "verify",
       sourceLockHash: request.scan.sourceLockHash,
       migrationEdges: request.scan.migrationEdges,
+      graphIssues: request.scan.graphIssues,
       findings: request.scan.findings,
       plan: request.plan,
       verification: {

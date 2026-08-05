@@ -29,7 +29,6 @@
       }
     ],
     "languages": ["typescript"],
-    "sdkConstraints": ["Direct OpenAI TypeScript client call to audio.transcriptions.create"],
     "behaviorChanges": [
       "Transcription output may differ between model snapshots; application-level audio evaluation remains required."
     ],

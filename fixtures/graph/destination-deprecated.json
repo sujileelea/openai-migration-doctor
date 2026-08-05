@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "1.0.0",
+  "synthetic": true,
+  "description": "Synthetic graph only; it makes no upstream product claim.",
+  "language": "typescript",
+  "from": {
+    "kind": "model",
+    "id": "synthetic-alpha-v1",
+    "displayName": "Synthetic Alpha v1"
+  },
+  "edges": [
+    {
+      "id": "synthetic.alpha.to.beta.deprecations",
+      "from": {
+        "kind": "model",
+        "id": "synthetic-alpha-v1"
+      },
+      "to": {
+        "kind": "model",
+        "id": "synthetic-beta-v1"
+      },
+      "sources": [
+        {
+          "url": "https://source-a.example.invalid/deprecations",
+          "title": "Synthetic deprecations source",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "languages": ["typescript"],
+      "behaviorChanges": [],
+      "automationTier": "A",
+      "reviewRequired": false
+    },
+    {
+      "id": "synthetic.alpha.to.beta.model-page",
+      "from": {
+        "kind": "model",
+        "id": "synthetic-alpha-v1"
+      },
+      "to": {
+        "kind": "model",
+        "id": "synthetic-beta-v1",
+        "displayName": "Synthetic Beta v1"
+      },
+      "sources": [
+        {
+          "url": "https://source-b.example.invalid/model-beta",
+          "title": "Synthetic Beta model page",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "languages": ["typescript", "python"],
+      "behaviorChanges": ["Synthetic review condition."],
+      "automationTier": "B",
+      "reviewRequired": true
+    },
+    {
+      "id": "synthetic.beta.to.gamma",
+      "from": {
+        "kind": "model",
+        "id": "synthetic-beta-v1"
+      },
+      "to": {
+        "kind": "model",
+        "id": "synthetic-gamma-v1",
+        "displayName": "Synthetic Gamma v1"
+      },
+      "sources": [
+        {
+          "url": "https://source-c.example.invalid/deprecations",
+          "title": "Synthetic successor deprecation source",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "languages": ["typescript"],
+      "behaviorChanges": [],
+      "automationTier": "A",
+      "reviewRequired": false
+    }
+  ]
+}

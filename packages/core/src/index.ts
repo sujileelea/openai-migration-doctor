@@ -1,6 +1,7 @@
 export * from "./canonical-json.js";
 export * from "./compare.js";
 export * from "./errors.js";
+export * from "./graph.js";
 export * from "./hash.js";
 export * from "./patch.js";
 export * from "./plan.js";

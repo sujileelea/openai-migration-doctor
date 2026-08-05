@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0.0",
+  "synthetic": true,
+  "description": "Synthetic missing destination only; it makes no upstream product claim.",
+  "language": "typescript",
+  "from": {
+    "kind": "product",
+    "id": "synthetic-product-v1"
+  },
+  "edges": [
+    {
+      "id": "synthetic.product.destination-missing",
+      "from": {
+        "kind": "product",
+        "id": "synthetic-product-v1"
+      },
+      "to": null,
+      "sources": [
+        {
+          "url": "https://missing.example.invalid/deprecation",
+          "title": "Synthetic destination-free deprecation source",
+          "retrievedAt": "2026-08-05T00:00:00.000Z",
+          "contentHash": "3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ],
+      "languages": ["typescript"],
+      "behaviorChanges": ["Synthetic destination requires review."],
+      "automationTier": "C",
+      "reviewRequired": true
+    }
+  ]
+}
