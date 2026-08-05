@@ -14,14 +14,19 @@ The system must combine:
 
 The user has explicitly removed schedule pressure. Optimize for **correctness, reproducibility, developer experience, and scan performance**, not feature count or demo speed.
 
-## 2. Current state
+## 2. Handoff baseline (historical)
+
+This section records the repository state when this handoff was written. For the
+current implementation status, use `README.md`, `docs/limitations.md`, and the
+Git history.
 
 - The product concept and target quality bar are locked.
-- No implementation exists yet.
+- No implementation existed at handoff time.
 - `README.md` is the public product contract and must remain truthful.
 - Commands, performance numbers, and coverage in the README are targets until measured.
 - Do not describe a planned feature as implemented.
-- There is no repository-level `AGENTS.md` yet. Create it after the first real build/test commands exist; keep it short and link to this handoff for deeper context.
+- There was no repository-level `AGENTS.md` at handoff time. The current file
+  contains only verified commands, durable constraints, and the definition of done.
 
 ## 3. Read before changing code
 
@@ -508,4 +513,3 @@ Before ending any Codex session:
 - update limitations for newly discovered unsupported cases;
 - leave the worktree in a reviewable state;
 - write the next smallest evidence-producing task.
-

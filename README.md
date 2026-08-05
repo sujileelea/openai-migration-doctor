@@ -30,7 +30,7 @@ The current `migration.lock` pins:
 
 Assistants, Agent Builder, Codex, and skill documentation are planned source families, not current rule coverage.
 
-Official documentation changes over time. Migration Doctor versions its source material and never silently resolves a source disagreement. If two current sources imply incompatible destinations, the finding is routed to human review.
+Official documentation changes over time. Migration Doctor versions reviewed source records and content hashes; it does not vendor the raw documentation pages. It never silently resolves a source disagreement. If two current sources imply incompatible destinations, the finding is routed to human review.
 
 ## Product thesis
 
@@ -88,7 +88,7 @@ The rule intentionally ignores comments, documentation strings, unrelated `model
 
 ```mermaid
 flowchart LR
-    A[Official OpenAI source snapshots] --> B[migration.lock]
+    A[Reviewed official-source records] --> B[migration.lock]
     C[TypeScript repository] --> D[Deterministic AST analyzer]
     B --> E[Frozen patch plan]
     D --> E
@@ -112,7 +112,7 @@ Every migration edge records:
 - whether the destination is also deprecated;
 - confidence and required review level.
 
-A generated `migration.lock` pins the source snapshot used for a run so that results remain reproducible after documentation changes.
+A generated `migration.lock` pins the checked-in source and migration artifact hashes used for a run. Each source record also stores the SHA-256 of the official raw Markdown reviewed at retrieval time. Raw page bodies are not vendored, so the lock reproduces analyzer inputs rather than an offline copy of upstream documentation; see [methodology](docs/methodology.md) for the audit procedure.
 
 ### 2. Deterministic repository analysis
 

@@ -7,7 +7,31 @@ The first rule was reviewed on 2026-08-05 against two official OpenAI pages:
 - [API deprecations](https://developers.openai.com/api/docs/deprecations)
 - [GPT-4o mini Transcribe](https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe)
 
-The raw Markdown SHA-256 values, retrieval timestamp, claims, migration mapping, and local artifact hashes are pinned by `migration.lock`. A changed or missing artifact fails before repository analysis.
+Each source record stores the SHA-256 of the exact bytes returned by the official
+`.md` endpoint, along with its retrieval timestamp and reviewed claims.
+`migration.lock` separately pins the checked-in source-record and migration-edge
+files. A changed or missing local artifact fails before repository analysis.
+
+Raw documentation bodies are not committed while the project's license and
+provenance policy remain pending. While upstream content is unchanged, reviewers
+can reproduce the recorded raw hashes with:
+
+```bash
+curl -fsSL https://developers.openai.com/api/docs/deprecations.md | shasum -a 256
+curl -fsSL https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe.md | shasum -a 256
+```
+
+Expected hashes for this review are:
+
+```text
+fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962
+da0d59ea4a9c17f571f28a3a721ed7e45df6bc7bad283f27378905a7f07cab44
+```
+
+A mismatch means the upstream page changed. Reviewers must fetch the new content
+to a temporary file, inspect the relevant claims, create a new dated source
+record, and update `migration.lock`; they must not overwrite historical records
+or accept the new hash without reviewing the mapping.
 
 The locked mapping is:
 
@@ -16,7 +40,7 @@ gpt-4o-mini-transcribe-2025-03-20
   -> gpt-4o-mini-transcribe-2025-12-15
 ```
 
-The deprecation was announced on 2026-07-20 and the source snapshot is scheduled to shut down on 2027-01-20.
+The deprecation was announced on 2026-07-20 and the deprecated model snapshot is scheduled to shut down on 2027-01-20.
 
 ## Automation boundary
 
