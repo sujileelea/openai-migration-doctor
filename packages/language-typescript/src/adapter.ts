@@ -59,13 +59,15 @@ function collectOpenAiClients(
   sourceFile: ts.SourceFile,
   checker: ts.TypeChecker,
   constructors: Set<ts.Symbol>,
-): Set<ts.Symbol> {
-  const clients = new Set<ts.Symbol>();
+): Map<ts.Symbol, number> {
+  const clients = new Map<ts.Symbol, number>();
 
   function visit(node: ts.Node): void {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
+      ts.isVariableDeclarationList(node.parent) &&
+      (node.parent.flags & ts.NodeFlags.Const) !== 0 &&
       node.initializer &&
       ts.isNewExpression(node.initializer) &&
       ts.isIdentifier(node.initializer.expression) &&
@@ -73,7 +75,7 @@ function collectOpenAiClients(
     ) {
       const symbol = checker.getSymbolAtLocation(node.name);
       if (symbol) {
-        clients.add(symbol);
+        clients.set(symbol, node.getEnd());
       }
     }
     ts.forEachChild(node, visit);
@@ -107,19 +109,34 @@ function findModelLiteral(call: ts.CallExpression): ts.StringLiteral | null {
     return null;
   }
 
+  const modelProperties: ts.ObjectLiteralElementLike[] = [];
   for (const property of request.properties) {
-    if (!ts.isPropertyAssignment(property) || !ts.isStringLiteral(property.initializer)) {
-      continue;
+    if (ts.isSpreadAssignment(property)) {
+      return null;
+    }
+    if (ts.isComputedPropertyName(property.name)) {
+      return null;
     }
     const name = property.name;
-    const isModel =
+    if (
       (ts.isIdentifier(name) && name.text === "model") ||
-      (ts.isStringLiteral(name) && name.text === "model");
-    if (isModel && property.initializer.text === SOURCE_MODEL) {
-      return property.initializer;
+      (ts.isStringLiteral(name) && name.text === "model")
+    ) {
+      modelProperties.push(property);
     }
   }
-  return null;
+
+  const modelProperty = modelProperties[0];
+  if (
+    modelProperties.length !== 1 ||
+    !modelProperty ||
+    !ts.isPropertyAssignment(modelProperty) ||
+    !ts.isStringLiteral(modelProperty.initializer) ||
+    modelProperty.initializer.text !== SOURCE_MODEL
+  ) {
+    return null;
+  }
+  return modelProperty.initializer;
 }
 
 function parseDiagnosticMessage(diagnostic: ts.Diagnostic): string {
@@ -196,10 +213,13 @@ function scanSource(
   function visit(node: ts.Node): void {
     if (ts.isCallExpression(node)) {
       const chain = propertyChain(node.expression);
+      const rootSymbol = chain ? checker.getSymbolAtLocation(chain.root) : undefined;
+      const constructedAt = rootSymbol ? clients.get(rootSymbol) : undefined;
       if (
         chain &&
         chain.segments.length === 4 &&
-        clients.has(checker.getSymbolAtLocation(chain.root) as ts.Symbol) &&
+        constructedAt !== undefined &&
+        node.getStart(sourceFile) > constructedAt &&
         chain.segments[1] === "audio" &&
         chain.segments[2] === "transcriptions" &&
         chain.segments[3] === "create"
@@ -259,13 +279,25 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
     const replacement = edge.to.id;
 
     const extensions = new Set<string>(this.extensions);
-    const files = await listRepositoryFiles(request.repositoryRoot, extensions);
+    let files: string[];
+    try {
+      files = await listRepositoryFiles(request.repositoryRoot, extensions);
+    } catch (error) {
+      throw new AnalysisError("Unable to enumerate candidate TypeScript files.", { cause: error });
+    }
     const findings = await Promise.all(
       files.map(async (relativeFile) => {
-        const content = await readFile(
-          resolveRepositoryFile(request.repositoryRoot, relativeFile),
-          "utf8",
-        );
+        let content: string;
+        try {
+          content = await readFile(
+            resolveRepositoryFile(request.repositoryRoot, relativeFile),
+            "utf8",
+          );
+        } catch (error) {
+          throw new AnalysisError(`Unable to read candidate TypeScript file ${relativeFile}.`, {
+            cause: error,
+          });
+        }
         if (!content.includes(SOURCE_MODEL)) {
           return [];
         }

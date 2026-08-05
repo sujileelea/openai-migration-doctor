@@ -1,5 +1,6 @@
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
+import { compareStrings } from "./compare.js";
 import { SourceLockError } from "./errors.js";
 import { sha256 } from "./hash.js";
 import {
@@ -15,6 +16,10 @@ export type MigrationRegistry = {
   sources: SourceRecord[];
   edges: MigrationEdge[];
 };
+
+function sourceKey(source: SourceRecord["source"]): string {
+  return [source.url, source.title, source.contentHash, source.retrievedAt].join("\u0000");
+}
 
 function parseJson(raw: string, label: string): unknown {
   try {
@@ -63,6 +68,8 @@ export async function loadMigrationRegistry(projectRoot: string): Promise<Migrat
   const sources: SourceRecord[] = [];
   const edges: MigrationEdge[] = [];
   const seenPaths = new Set<string>();
+  const seenSourceIds = new Set<string>();
+  const seenEdgeIds = new Set<string>();
 
   for (const artifact of parsedLock.data.artifacts) {
     if (seenPaths.has(artifact.path)) {
@@ -95,6 +102,10 @@ export async function loadMigrationRegistry(projectRoot: string): Promise<Migrat
           `${artifact.path} failed schema validation: ${parsed.error.message}`,
         );
       }
+      if (seenSourceIds.has(parsed.data.id)) {
+        throw new SourceLockError(`Source lock contains a duplicate source ID: ${parsed.data.id}`);
+      }
+      seenSourceIds.add(parsed.data.id);
       sources.push(parsed.data);
       continue;
     }
@@ -105,25 +116,42 @@ export async function loadMigrationRegistry(projectRoot: string): Promise<Migrat
         `${artifact.path} failed schema validation: ${parsed.error.message}`,
       );
     }
+    if (seenEdgeIds.has(parsed.data.edge.id)) {
+      throw new SourceLockError(
+        `Source lock contains a duplicate migration edge ID: ${parsed.data.edge.id}`,
+      );
+    }
+    seenEdgeIds.add(parsed.data.edge.id);
     edges.push(parsed.data.edge);
   }
 
-  const sourceKeys = new Set(
-    sources.map(
-      ({ source }) => `${source.url}\u0000${source.contentHash}\u0000${source.retrievedAt}`,
-    ),
-  );
+  const sourceKeys = new Set(sources.map(({ source }) => sourceKey(source)));
   for (const edge of edges) {
     for (const source of edge.sources) {
-      const key = `${source.url}\u0000${source.contentHash}\u0000${source.retrievedAt}`;
-      if (!sourceKeys.has(key)) {
+      if (!sourceKeys.has(sourceKey(source))) {
         throw new SourceLockError(`Migration edge ${edge.id} references an unlocked source.`);
       }
     }
   }
 
-  sources.sort((left, right) => left.id.localeCompare(right.id));
-  edges.sort((left, right) => left.id.localeCompare(right.id));
+  const destinationsByOrigin = new Map<string, Set<string>>();
+  for (const edge of edges) {
+    for (const language of edge.languages) {
+      const origin = `${edge.from.kind}:${edge.from.id}\u0000${language}`;
+      const destination = edge.to ? `${edge.to.kind}:${edge.to.id}` : "none";
+      const destinations = destinationsByOrigin.get(origin) ?? new Set<string>();
+      destinations.add(destination);
+      destinationsByOrigin.set(origin, destinations);
+      if (destinations.size > 1) {
+        throw new SourceLockError(
+          `Source lock contains conflicting migration destinations for ${edge.from.kind}:${edge.from.id} (${language}).`,
+        );
+      }
+    }
+  }
+
+  sources.sort((left, right) => compareStrings(left.id, right.id));
+  edges.sort((left, right) => compareStrings(left.id, right.id));
 
   return {
     sourceLockHash: sha256(lockRaw),

@@ -1,4 +1,4 @@
-import { appendFile, cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { appendFile, cp, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -61,14 +61,19 @@ describe("deterministic TypeScript vertical slice", () => {
     expect(await hashRepositoryTree(root)).toBe(before);
   });
 
-  it.each(["comment-only", "unrelated-model-property", "already-migrated", "shadowed-client"])(
-    "does not report the %s negative fixture",
-    async (name) => {
-      const scan = await scanFixture(name);
-      expect(scan.findings).toEqual([]);
-      expect(scan.summary).toEqual({ total: 0, blocking: 0 });
-    },
-  );
+  it.each([
+    "comment-only",
+    "unrelated-model-property",
+    "already-migrated",
+    "shadowed-client",
+    "reassigned-client",
+    "ambiguous-model-property",
+    "use-before-construction",
+  ])("does not report the %s negative fixture", async (name) => {
+    const scan = await scanFixture(name);
+    expect(scan.findings).toEqual([]);
+    expect(scan.summary).toEqual({ total: 0, blocking: 0 });
+  });
 
   it("creates a byte-stable literal-only patch preview without mutating the source", async () => {
     const root = fixturePath("direct-model-literal");
@@ -145,6 +150,78 @@ describe("deterministic TypeScript vertical slice", () => {
     await expect(createPatchPreview(temporaryRoot, scan, plan)).rejects.toThrow(
       "file hash changed",
     );
+  });
+
+  it("rejects a finding whose replacement is not the locked destination", async () => {
+    const scan = await scanFixture("direct-model-literal");
+    const finding = scan.findings[0];
+    expect(finding).toBeDefined();
+    if (!finding) {
+      return;
+    }
+
+    const tampered = {
+      ...scan,
+      findings: [
+        {
+          ...finding,
+          remediation: {
+            ...finding.remediation,
+            replacement: "not-the-locked-destination",
+          },
+        },
+      ],
+    };
+
+    expect(() => createPlanReport(tampered)).toThrow("does not match locked destination");
+  });
+
+  it("verifies a repository whose root name matches an excluded directory", async () => {
+    const temporaryParent = await mkdtemp(path.join(tmpdir(), "migration-doctor-root-"));
+    temporaryDirectories.push(temporaryParent);
+    const root = path.join(temporaryParent, "dist");
+    await cp(fixturePath("direct-model-literal"), root, { recursive: true });
+
+    const scan = await scanRepository({ repositoryRoot: root, registry, adapters: [adapter] });
+    const plan = createPlanReport(scan).plan;
+    const preview = await createPatchPreview(root, scan, plan);
+    const report = await verifyPatchPlan({
+      repositoryRoot: root,
+      scan,
+      plan,
+      preview,
+      registry,
+      adapters: [adapter],
+    });
+
+    expect(report.verification.passed).toBe(true);
+  });
+
+  it("verifies through a symlinked repository root without following nested symlinks", async () => {
+    const temporaryParent = await mkdtemp(path.join(tmpdir(), "migration-doctor-symlink-root-"));
+    temporaryDirectories.push(temporaryParent);
+    const actualRoot = path.join(temporaryParent, "actual");
+    const linkedRoot = path.join(temporaryParent, "repository");
+    await cp(fixturePath("direct-model-literal"), actualRoot, { recursive: true });
+    await symlink(actualRoot, linkedRoot);
+
+    const scan = await scanRepository({
+      repositoryRoot: linkedRoot,
+      registry,
+      adapters: [adapter],
+    });
+    const plan = createPlanReport(scan).plan;
+    const preview = await createPatchPreview(linkedRoot, scan, plan);
+    const report = await verifyPatchPlan({
+      repositoryRoot: linkedRoot,
+      scan,
+      plan,
+      preview,
+      registry,
+      adapters: [adapter],
+    });
+
+    expect(report.verification.passed).toBe(true);
   });
 
   it("produces identical canonical scan JSON from different absolute roots", async () => {

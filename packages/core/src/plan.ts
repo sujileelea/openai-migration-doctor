@@ -1,3 +1,4 @@
+import { compareStrings } from "./compare.js";
 import { SourceLockError } from "./errors.js";
 import { sha256 } from "./hash.js";
 import {
@@ -17,10 +18,10 @@ function resourceKey(resource: MigrationEdge["from"]): string {
 
 function compareEdits(left: TextEdit, right: TextEdit): number {
   return (
-    left.file.localeCompare(right.file) ||
+    compareStrings(left.file, right.file) ||
     left.startOffset - right.startOffset ||
     left.endOffset - right.endOffset ||
-    left.id.localeCompare(right.id)
+    compareStrings(left.id, right.id)
   );
 }
 
@@ -39,6 +40,11 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
     if (!edge.to) {
       abstentionReasons.push(`${finding.id}: official migration destination is missing.`);
       continue;
+    }
+    if (finding.remediation.replacement !== edge.to.id) {
+      throw new SourceLockError(
+        `Finding ${finding.id} replacement does not match locked destination ${edge.to.id}.`,
+      );
     }
     if (edge.automationTier !== "A" || finding.automationTier !== "A") {
       abstentionReasons.push(`${finding.id}: migration is not eligible for a Tier A edit.`);
@@ -72,9 +78,9 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
   }
 
   edits.sort(compareEdits);
-  abstentionReasons.sort();
-  const findingIds = scan.findings.map((finding) => finding.id).sort();
-  const allowedFiles = [...new Set(edits.map((edit) => edit.file))].sort();
+  abstentionReasons.sort(compareStrings);
+  const findingIds = scan.findings.map((finding) => finding.id).sort(compareStrings);
+  const allowedFiles = [...new Set(edits.map((edit) => edit.file))].sort(compareStrings);
   const status = abstentionReasons.length > 0 ? "blocked" : edits.length > 0 ? "ready" : "no-op";
 
   return PatchPlanSchema.parse({

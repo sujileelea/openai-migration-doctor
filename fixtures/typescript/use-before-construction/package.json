@@ -1,0 +1,5 @@
+{
+  "name": "fixture-use-before-construction",
+  "private": true,
+  "type": "module"
+}

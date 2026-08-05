@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { compareStrings } from "./compare.js";
 import { ConfigurationError } from "./errors.js";
 import { sha256 } from "./hash.js";
 
@@ -53,7 +54,7 @@ export async function listRepositoryFiles(
 
   async function visit(directory: string): Promise<void> {
     const entries = await readdir(directory, { withFileTypes: true });
-    entries.sort((left, right) => left.name.localeCompare(right.name));
+    entries.sort((left, right) => compareStrings(left.name, right.name));
 
     for (const entry of entries) {
       if (DEFAULT_EXCLUSIONS.includes(entry.name as (typeof DEFAULT_EXCLUSIONS)[number])) {

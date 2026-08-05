@@ -1,3 +1,4 @@
+import { compareStrings } from "./compare.js";
 import type { LanguageAdapter } from "./ports.js";
 import {
   DEFAULT_EXCLUSIONS,
@@ -18,11 +19,11 @@ function compareFindings(
   right: ReturnType<typeof FindingSchema.parse>,
 ): number {
   return (
-    left.location.file.localeCompare(right.location.file) ||
+    compareStrings(left.location.file, right.location.file) ||
     left.location.line - right.location.line ||
     left.location.column - right.location.column ||
-    left.ruleId.localeCompare(right.ruleId) ||
-    left.id.localeCompare(right.id)
+    compareStrings(left.ruleId, right.ruleId) ||
+    compareStrings(left.id, right.id)
   );
 }
 
@@ -37,7 +38,7 @@ export async function scanRepository(request: ScanRepositoryRequest): Promise<Sc
   findings.sort(compareFindings);
 
   const extensions = [...new Set(request.adapters.flatMap((adapter) => [...adapter.extensions]))];
-  extensions.sort();
+  extensions.sort(compareStrings);
 
   return ScanResultSchema.parse({
     schemaVersion: SCHEMA_VERSION,
@@ -46,7 +47,7 @@ export async function scanRepository(request: ScanRepositoryRequest): Promise<Sc
     sourceLockHash: request.registry.sourceLockHash,
     scope: {
       extensions,
-      exclusions: [...DEFAULT_EXCLUSIONS].sort(),
+      exclusions: [...DEFAULT_EXCLUSIONS].sort(compareStrings),
     },
     migrationEdges: request.registry.edges,
     findings,

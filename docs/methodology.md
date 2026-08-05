@@ -60,6 +60,8 @@ The edit replaces only the characters inside that literal. It preserves quote st
 - comment-only occurrence;
 - unrelated object with the same `model` value;
 - a fake client that shadows the real OpenAI client identifier;
+- mutable or reassigned client bindings and use before construction;
+- spread, duplicate, and computed request properties;
 - already-migrated API usage.
 
 The automated suite also covers locked-artifact tampering, parser failure, stale plans, absolute-root independence, Markdown and JSON agreement, original-tree immutability, and CLI exit codes.

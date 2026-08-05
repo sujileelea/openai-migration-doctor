@@ -82,7 +82,7 @@ Applies the preview in a temporary tree and verifies the changed-file allowlist,
 | --- | --- | --- | --- |
 | `gpt-4o-mini-transcribe-2025-03-20` to `gpt-4o-mini-transcribe-2025-12-15` | Direct string literal in a recognized OpenAI TypeScript `audio.transcriptions.create` call | A | Exact edit and file-boundary contracts; runtime transcript parity not verified |
 
-The rule intentionally ignores comments, documentation strings, unrelated `model` properties, aliases, wrappers, computed properties, environment configuration, and Realtime calls. Unsupported forms produce no finding in this phase; see [limitations](docs/limitations.md).
+The rule intentionally ignores comments, documentation strings, unrelated `model` properties, mutable or reassigned clients, aliases, wrappers, spreads, duplicate or computed properties, environment configuration, and Realtime calls. Unsupported forms produce no finding in this phase; see [limitations](docs/limitations.md).
 
 ## Architecture
 
@@ -237,7 +237,7 @@ The benchmark suite will treat performance regressions as release blockers.
 
 ## Evaluation
 
-The current deterministic suite contains five fixture classes and 22 automated tests covering the source lock, positive and negative analysis, symbol shadowing, stale plans, canonical reports, patch preview, temporary-tree verification, and CLI exit codes. This is implementation evidence, not a public accuracy benchmark.
+The current deterministic suite contains eight TypeScript fixture classes and 34 automated tests covering the source lock, positive and negative analysis, symbol identity and data-flow boundaries, stale plans, locale-independent canonical reports, patch preview, temporary-tree verification, and CLI exit codes. This is implementation evidence, not a public accuracy benchmark.
 
 The public benchmark will include:
 

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -44,6 +44,34 @@ describe("CLI exit-code contract", () => {
     expect(JSON.parse(result.stdout).findings).toEqual([]);
   });
 
+  it("keeps canonical JSON byte-identical across host locales", async () => {
+    const repository = await mkdtemp(path.join(tmpdir(), "migration-doctor-locale-"));
+    temporaryDirectories.push(repository);
+    const source = await readFile(
+      path.join(fixturePath("direct-model-literal"), "src/transcribe.ts"),
+      "utf8",
+    );
+    await writeFile(path.join(repository, "z.ts"), source);
+    await writeFile(path.join(repository, "ä.ts"), source);
+
+    const english = runCli(["scan", repository, "--format", "json"], {
+      LANG: "en_US.UTF-8",
+      LC_ALL: "en_US.UTF-8",
+    });
+    const swedish = runCli(["scan", repository, "--format", "json"], {
+      LANG: "sv_SE.UTF-8",
+      LC_ALL: "sv_SE.UTF-8",
+    });
+
+    expect(english.status).toBe(1);
+    expect(swedish.status).toBe(1);
+    expect(english.stdout).toBe(swedish.stdout);
+    const report = JSON.parse(english.stdout) as {
+      findings: Array<{ location: { file: string } }>;
+    };
+    expect(report.findings.map((finding) => finding.location.file)).toEqual(["z.ts", "ä.ts"]);
+  });
+
   it("returns 0 after deterministic verification passes", () => {
     const result = runCli(["verify", fixturePath("direct-model-literal"), "--format", "json"]);
     expect(result.status).toBe(0);
@@ -81,6 +109,19 @@ describe("CLI exit-code contract", () => {
     );
 
     const result = runCli(["scan", repository, "--format", "json"]);
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain("ANALYSIS_INCOMPLETE");
+  });
+
+  it("returns 3 when a candidate TypeScript file cannot be read", async () => {
+    const repository = await mkdtemp(path.join(tmpdir(), "migration-doctor-unreadable-"));
+    temporaryDirectories.push(repository);
+    const candidate = path.join(repository, "unreadable.ts");
+    await writeFile(candidate, 'const model = "gpt-4o-mini-transcribe-2025-03-20";\n');
+    await chmod(candidate, 0o000);
+
+    const result = runCli(["scan", repository, "--format", "json"]);
+
     expect(result.status).toBe(3);
     expect(result.stderr).toContain("ANALYSIS_INCOMPLETE");
   });

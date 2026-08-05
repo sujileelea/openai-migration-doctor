@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { compareStrings } from "./compare.js";
 import { MigrationError } from "./errors.js";
 import { sha256 } from "./hash.js";
 import { resolveRepositoryFile } from "./repository.js";
@@ -75,7 +76,7 @@ export async function createPatchPreview(
   }
 
   const files: PatchPreviewFile[] = [];
-  for (const file of [...editsByFile.keys()].sort()) {
+  for (const file of [...editsByFile.keys()].sort(compareStrings)) {
     const edits = editsByFile.get(file);
     if (!edits) {
       continue;

@@ -1,4 +1,5 @@
 export * from "./canonical-json.js";
+export * from "./compare.js";
 export * from "./errors.js";
 export * from "./hash.js";
 export * from "./patch.js";

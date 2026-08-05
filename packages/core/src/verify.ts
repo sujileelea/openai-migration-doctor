@@ -1,11 +1,13 @@
 import { cp, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { compareStrings } from "./compare.js";
 import { applyTextEdits } from "./patch.js";
 import type { LanguageAdapter } from "./ports.js";
 import {
   DEFAULT_EXCLUSIONS,
   hashRepositoryTree,
+  normalizeRepositoryRoot,
   repositoryFileHashes,
   resolveRepositoryFile,
 } from "./repository.js";
@@ -35,14 +37,18 @@ function sameStringArrays(left: string[], right: string[]): boolean {
 }
 
 export async function verifyPatchPlan(request: VerifyPatchPlanRequest): Promise<VerifyReport> {
-  const originalTreeHash = await hashRepositoryTree(request.repositoryRoot);
+  const repositoryRoot = await normalizeRepositoryRoot(request.repositoryRoot);
+  const originalTreeHash = await hashRepositoryTree(repositoryRoot);
   const temporaryParent = await mkdtemp(path.join(tmpdir(), "migration-doctor-"));
   const temporaryRoot = path.join(temporaryParent, "repository");
 
   try {
-    await cp(request.repositoryRoot, temporaryRoot, {
+    await cp(repositoryRoot, temporaryRoot, {
       recursive: true,
       filter: async (source) => {
+        if (path.resolve(source) === repositoryRoot) {
+          return true;
+        }
         if (
           DEFAULT_EXCLUSIONS.includes(path.basename(source) as (typeof DEFAULT_EXCLUSIONS)[number])
         ) {
@@ -64,10 +70,10 @@ export async function verifyPatchPlan(request: VerifyPatchPlanRequest): Promise<
     const changedFiles = [...afterHashes.entries()]
       .filter(([file, hash]) => beforeHashes.get(file) !== hash)
       .map(([file]) => file)
-      .sort();
+      .sort(compareStrings);
     const expectedChangedFiles =
       request.plan.edits.length > 0 ? [...request.plan.allowedFiles] : [];
-    expectedChangedFiles.sort();
+    expectedChangedFiles.sort(compareStrings);
 
     const exactEdits = request.preview.files.every(
       (file) => afterHashes.get(file.path) === file.afterHash,
@@ -79,8 +85,7 @@ export async function verifyPatchPlan(request: VerifyPatchPlanRequest): Promise<
       adapters: request.adapters,
     });
     const findingResolved = rescanned.findings.length === 0;
-    const originalUnchanged =
-      (await hashRepositoryTree(request.repositoryRoot)) === originalTreeHash;
+    const originalUnchanged = (await hashRepositoryTree(repositoryRoot)) === originalTreeHash;
 
     const checks: VerificationResult["checks"] = [
       {

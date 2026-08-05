@@ -8,10 +8,10 @@ Migration Doctor is pre-alpha and supports one narrow rule.
 - The OpenAI import, directly constructed client, and API call must be in the same file.
 - Only `audio.transcriptions.create` is recognized.
 - The request must be an inline object literal with a direct string-literal `model` property.
-- JavaScript, aliases, reassignment, wrappers, helper functions, spreads, computed properties, template literals, variables, environment configuration, and Realtime calls are not supported.
+- JavaScript, aliases, mutable or reassigned client bindings, wrappers, helper functions, spreads, duplicate or computed properties, template literals, variables, environment configuration, and Realtime calls are not supported.
 - Unsupported patterns currently produce no finding rather than a Tier C finding. That abstention surface is planned.
 
-These constraints favor precision over recall. No public precision or recall claim is made from the four current fixtures.
+These constraints favor precision over recall. No public precision or recall claim is made from the current synthetic fixtures.
 
 ## Transformation and verification
 
