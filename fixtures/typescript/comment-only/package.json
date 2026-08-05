@@ -1,0 +1,5 @@
+{
+  "name": "comment-only-fixture",
+  "private": true,
+  "type": "module"
+}

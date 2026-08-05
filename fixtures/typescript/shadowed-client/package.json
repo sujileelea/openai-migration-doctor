@@ -1,0 +1,5 @@
+{
+  "name": "shadowed-client-fixture",
+  "private": true,
+  "type": "module"
+}
