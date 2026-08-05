@@ -3,4 +3,9 @@ dist/
 coverage/
 *.tsbuildinfo
 .migration-doctor/
-
+.DS_Store
+.env
+.env.*
+!.env.example
+*.key
+*.pem
