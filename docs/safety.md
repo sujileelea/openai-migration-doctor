@@ -12,8 +12,11 @@ No command invokes Codex, reads an OpenAI API key, pushes Git changes, creates a
 ## Fail-closed checks
 
 - Missing, malformed, or hash-mismatched source-lock artifacts stop analysis.
+- Duplicate source or migration IDs stop analysis.
 - Candidate TypeScript files with parser errors stop analysis instead of being silently skipped.
-- A destination that is also deprecated in the loaded lock blocks patch planning.
+- A uniquely deprecated destination is followed to its terminal graph target; conflicting destinations, cycles, missing destinations, and unverified SDK constraints prevent deterministic patch generation.
+- Source conflicts preserve every involved source, require human review, and never choose a replacement.
+- A plan with any abstention is atomic: it contains no partial edits and remains reportable as a blocked result.
 - File hash or expected-text drift invalidates a frozen plan.
 - Overlapping edits are rejected.
 - Verification compares the complete resulting file hash, not only the changed-file name.

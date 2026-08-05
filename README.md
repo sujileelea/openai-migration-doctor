@@ -51,17 +51,19 @@ corepack pnpm run doctor verify fixtures/typescript/direct-model-literal
 
 Use `--format json` for canonical machine output. Execution duration and cache state are written to stderr so the JSON remains byte-stable for the same repository and source lock.
 
+Locked source-registry artifacts remain on schema `1.0.0`. Findings and command reports use schema `2.0.0`; the versions are independent so report-contract changes do not rewrite reviewed source evidence.
+
 ### `scan`
 
 Indexes supported TypeScript files and reports exact evidence without calling an external API or changing the repository.
 
 ### `plan`
 
-Combines findings with the locked migration edge and freezes exact edit offsets, source hashes, and verification contracts.
+Combines findings with the locked migration graph, resolves a unique terminal destination, and freezes exact edit offsets, source hashes, and verification contracts.
 
 ### `migrate`
 
-Produces a deterministic patch preview. This pre-alpha release never applies the patch to the source repository.
+Produces a deterministic patch preview. A blocked plan produces an empty preview with its abstention reasons instead of applying a partial migration. This pre-alpha release never applies the patch to the source repository.
 
 ### `verify`
 
@@ -73,7 +75,7 @@ Applies the preview in a temporary tree and verifies the changed-file allowlist,
 - `1`: command completed and blocking migration findings remain;
 - `2`: invalid invocation or configuration;
 - `3`: analysis was incomplete;
-- `4`: `migration.lock` or a locked artifact is missing or invalid;
+- `4`: `migration.lock` or a locked artifact is missing or invalid, or the relevant graph is conflicted or cyclic;
 - `5`: patch planning or verification failed.
 
 ## Current rule coverage
@@ -90,14 +92,15 @@ The rule intentionally ignores comments, documentation strings, unrelated `model
 flowchart LR
     A[Reviewed official-source records] --> B[migration.lock]
     C[TypeScript repository] --> D[Deterministic AST analyzer]
-    B --> E[Frozen patch plan]
+    B --> I[Migration graph resolver]
+    I --> E[Frozen patch plan]
     D --> E
     E --> F[Patch preview]
     F --> G[Temporary-tree verification]
     G --> H[Markdown and canonical JSON]
 ```
 
-Codex remediation, Python, SARIF, HTML, caching, and graph traversal remain planned. The implemented dependency direction is documented in [architecture](docs/architecture.md).
+Codex remediation, Python, SARIF, HTML, and caching remain planned. The implemented dependency direction is documented in [architecture](docs/architecture.md).
 
 ### 1. Versioned migration graph
 
@@ -113,6 +116,8 @@ Every migration edge records:
 - confidence and required review level.
 
 A generated `migration.lock` pins the checked-in source and migration artifact hashes used for a run. Each source record also stores the SHA-256 of the official raw Markdown reviewed at retrieval time. Raw page bodies are not vendored, so the lock reproduces analyzer inputs rather than an offline copy of upstream documentation; see [methodology](docs/methodology.md) for the audit procedure.
+
+The resolver follows same-language edges until it reaches a destination that is not itself deprecated. Multiple sources that name the same destination are aggregated; conflicting destinations, cycles, missing destinations, and SDK constraints without structured repository evidence produce deterministic review records. A relevant source conflict becomes a Tier C finding and no replacement is selected.
 
 ### 2. Deterministic repository analysis
 
@@ -175,20 +180,36 @@ Coverage is published per rule. A broad claim such as “supports Assistants mig
 
 ```json
 {
+  "schemaVersion": "2.0.0",
   "id": "206aba3c539f65ed2bd4cb216e800722918d5bd76c2c67f75c4251df0a1738f3",
+  "kind": "deprecated-usage",
+  "language": "typescript",
+  "resource": {
+    "kind": "model",
+    "id": "gpt-4o-mini-transcribe-2025-03-20"
+  },
   "ruleId": "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20",
   "severity": "error",
   "location": {
     "file": "src/transcribe.ts",
     "line": 11,
-    "column": 13
+    "column": 13,
+    "startOffset": 355,
+    "endOffset": 388
   },
+  "fileHash": "276e9080d44d2a1ebd841dcfaf69af693e01705ff453286840a24d19c78c8fb3",
   "evidence": "gpt-4o-mini-transcribe-2025-03-20",
   "migrationEdgeIds": [
     "openai.model.gpt-4o-mini-transcribe-2025-03-20.to.2025-12-15"
   ],
+  "graphIssueIds": [],
   "confidence": "high",
-  "automationTier": "A"
+  "automationTier": "A",
+  "reviewRequired": true,
+  "remediation": {
+    "kind": "replace-string-literal",
+    "replacement": "gpt-4o-mini-transcribe-2025-12-15"
+  }
 }
 ```
 
@@ -237,7 +258,7 @@ The benchmark suite will treat performance regressions as release blockers.
 
 ## Evaluation
 
-The current deterministic suite contains eight TypeScript fixture classes and 34 automated tests covering the source lock, positive and negative analysis, symbol identity and data-flow boundaries, stale plans, locale-independent canonical reports, patch preview, temporary-tree verification, and CLI exit codes. This is implementation evidence, not a public accuracy benchmark.
+The current deterministic suite contains eight TypeScript fixture classes, five synthetic graph fixtures, and 59 automated tests. It covers schema invariants, byte-exact source locks, graph traversal and conflicts, constrained-path abstention, positive and negative analysis, symbol identity and data-flow boundaries, stale plans, locale-independent canonical reports, atomic abstention, patch preview, temporary-tree verification, and CLI exit codes. This is implementation evidence, not a public accuracy benchmark.
 
 The public benchmark will include:
 
@@ -286,6 +307,7 @@ migration-doctor/
 │   ├── sources/
 │   └── migrations/
 ├── fixtures/
+│   ├── graph/
 │   └── typescript/
 ├── docs/
 │   ├── architecture.md
@@ -303,10 +325,10 @@ migration-doctor/
 The project is quality-gated rather than date-gated:
 
 1. **Done:** establish schemas, source provenance, and a TypeScript vertical slice.
-2. **Done:** prove deterministic detection and Markdown/JSON reporting.
-3. **Current:** expand the first deterministic migration from patch mechanics to repository and audio behavioral contracts.
-4. Add Assistants detection, planning, and an abstaining unsupported case.
-5. Add isolated Codex remediation and behavioral verification.
+2. **Done:** prove graph traversal, destination-deprecation checks, conflict records, and Tier C abstention.
+3. **Current:** add Assistants analysis and useful unsupported-pattern abstention without transformation.
+4. Define repository and offline application behavioral contracts.
+5. Add isolated Codex remediation only after those contracts fail against deliberately broken migrations.
 6. Publish the benchmark and performance ledger.
 7. Add Python through the same language-adapter contract.
 8. Package the validated workflow as a Codex skill, then as a plugin if broader distribution is justified.

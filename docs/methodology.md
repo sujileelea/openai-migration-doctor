@@ -66,6 +66,8 @@ The edit replaces only the characters inside that literal. It preserves quote st
 
 The automated suite also covers locked-artifact tampering, parser failure, stale plans, absolute-root independence, Markdown and JSON agreement, original-tree immutability, and CLI exit codes.
 
+Five `example.invalid` graph fixtures exercise a deprecated intermediate destination, conflicting destinations, a cycle, missing guidance, and an SDK constraint without structured repository evidence. They are explicitly synthetic and make no claim about an OpenAI product. Conflict integration tests require a Tier C finding, preserve both source records, and prove that no patch is planned.
+
 ## Claims boundary
 
 Passing verification means the patch mechanics satisfy the declared deterministic contracts. It does not mean transcription quality, latency, token use, cost, or application behavior has been preserved. Those claims require a representative audio corpus and repository-specific checks.

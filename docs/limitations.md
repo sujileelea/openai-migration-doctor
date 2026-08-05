@@ -23,7 +23,9 @@ These constraints favor precision over recall. No public precision or recall cla
 
 ## Sources and reports
 
-- The lock contains one migration edge and does not yet implement general graph traversal or multi-source conflict records.
+- The production lock contains one reviewed migration edge. Chained destinations, same-target source aggregation, conflicts, missing destinations, and cycles are implemented and covered with clearly synthetic graph fixtures.
+- SDK constraint strings are not treated as repository evidence. Until package/version/location proofs are structured and validated, any relevant constrained edge causes an `unverified-constraint` abstention.
+- Graph diagnostics are currently emitted only for resource families evaluated by an installed language adapter; there is no repository-wide rule-independent graph audit command yet.
 - Source refresh is manual.
 - Canonical JSON and Markdown are implemented; saved report files, SARIF, HTML, and GitHub annotations are not.
 - Runtime telemetry is written to stderr and is not part of the canonical report.
