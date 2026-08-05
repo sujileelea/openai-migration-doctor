@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/language-typescript" },
+    { "path": "./packages/reporters" },
+    { "path": "./packages/cli" }
+  ]
+}

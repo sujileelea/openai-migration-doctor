@@ -1,0 +1,30 @@
+{
+  "name": "migration-doctor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -b --pretty false",
+    "clean": "tsc -b --clean",
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.tests.json --pretty false",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "tsc -b --pretty false && vitest run",
+    "test:watch": "vitest",
+    "doctor": "node packages/cli/dist/index.js"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.2",
+    "@migration-doctor/core": "workspace:*",
+    "@migration-doctor/language-typescript": "workspace:*",
+    "@migration-doctor/reporters": "workspace:*",
+    "@types/node": "24.3.0",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}

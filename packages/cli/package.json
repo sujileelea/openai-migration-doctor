@@ -1,0 +1,17 @@
+{
+  "name": "@migration-doctor/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "migration-doctor": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@migration-doctor/core": "workspace:*",
+    "@migration-doctor/language-typescript": "workspace:*",
+    "@migration-doctor/reporters": "workspace:*",
+    "commander": "14.0.0"
+  }
+}

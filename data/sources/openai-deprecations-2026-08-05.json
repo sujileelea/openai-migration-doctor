@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "openai.deprecations.2026-08-05",
+  "source": {
+    "url": "https://developers.openai.com/api/docs/deprecations",
+    "title": "Deprecations | OpenAI API",
+    "retrievedAt": "2026-08-05T08:14:03Z",
+    "contentHash": "fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962"
+  },
+  "claims": [
+    "The gpt-4o-mini-transcribe-2025-03-20 snapshot was deprecated on 2026-07-20.",
+    "The snapshot shuts down on 2027-01-20.",
+    "The official replacement is gpt-4o-mini-transcribe-2025-12-15."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "openai.model.gpt-4o-mini-transcribe.2026-08-05",
+  "source": {
+    "url": "https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe",
+    "title": "GPT-4o mini Transcribe Model | OpenAI API",
+    "retrievedAt": "2026-08-05T08:14:03Z",
+    "contentHash": "da0d59ea4a9c17f571f28a3a721ed7e45df6bc7bad283f27378905a7f07cab44"
+  },
+  "claims": [
+    "Both dated IDs are snapshots in the GPT-4o mini Transcribe model family.",
+    "The model family supports the v1/audio/transcriptions endpoint."
+  ]
+}

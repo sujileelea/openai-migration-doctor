@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0.0",
+  "edge": {
+    "id": "openai.model.gpt-4o-mini-transcribe-2025-03-20.to.2025-12-15",
+    "from": {
+      "kind": "model",
+      "id": "gpt-4o-mini-transcribe-2025-03-20",
+      "displayName": "GPT-4o mini Transcribe 2025-03-20"
+    },
+    "to": {
+      "kind": "model",
+      "id": "gpt-4o-mini-transcribe-2025-12-15",
+      "displayName": "GPT-4o mini Transcribe 2025-12-15"
+    },
+    "announcedAt": "2026-07-20",
+    "shutdownAt": "2027-01-20",
+    "sources": [
+      {
+        "url": "https://developers.openai.com/api/docs/deprecations",
+        "title": "Deprecations | OpenAI API",
+        "retrievedAt": "2026-08-05T08:14:03Z",
+        "contentHash": "fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962"
+      },
+      {
+        "url": "https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe",
+        "title": "GPT-4o mini Transcribe Model | OpenAI API",
+        "retrievedAt": "2026-08-05T08:14:03Z",
+        "contentHash": "da0d59ea4a9c17f571f28a3a721ed7e45df6bc7bad283f27378905a7f07cab44"
+      }
+    ],
+    "languages": ["typescript"],
+    "sdkConstraints": ["Direct OpenAI TypeScript client call to audio.transcriptions.create"],
+    "behaviorChanges": [
+      "Transcription output may differ between model snapshots; application-level audio evaluation remains required."
+    ],
+    "automationTier": "A",
+    "reviewRequired": true
+  }
+}

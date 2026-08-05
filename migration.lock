@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "createdAt": "2026-08-05T08:14:03Z",
+  "artifacts": [
+    {
+      "kind": "source",
+      "path": "data/sources/openai-deprecations-2026-08-05.json",
+      "sha256": "4738a9b7f4041e9bfd99f58651ec9eb06dfb7a4076ff42da9bbad2bfb0540274"
+    },
+    {
+      "kind": "source",
+      "path": "data/sources/openai-gpt-4o-mini-transcribe-2026-08-05.json",
+      "sha256": "6fae0611e2a48c2750775cc35ad160c312e851d9c5fbdd9da052c3dfad4d8a16"
+    },
+    {
+      "kind": "migration",
+      "path": "data/migrations/gpt-4o-mini-transcribe-2025-03-20.json",
+      "sha256": "4a4ecf3537454dcec72024d35d6b1eae418c0360513b2ca1bd1a7cdbec9f8ff5"
+    }
+  ]
+}
