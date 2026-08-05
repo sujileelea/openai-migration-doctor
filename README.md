@@ -1,0 +1,339 @@
+# Migration Doctor for OpenAI APIs
+
+> Deterministic detection, source-grounded planning, scoped transformation, and behavioral verification for OpenAI API migrations.
+
+**Project status:** pre-alpha vertical slice. Local source builds now support one reviewed TypeScript migration rule end to end. The package is not published, runtime behavioral parity is not yet evaluated, and all benchmark numbers below remain targets.
+
+Migration Doctor is an **unofficial developer tool intended for open-source release** after license and provenance review. It is not an OpenAI product and is not affiliated with or endorsed by OpenAI.
+
+## Why this exists
+
+OpenAI publishes deprecation timelines and migration guides for models, APIs, and developer products. A production migration is still harder than replacing one string with another:
+
+- a recommended destination can later acquire its own shutdown date;
+- SDK calls can be wrapped, aliased, or selected dynamically;
+- moving from Assistants to Responses and Conversations changes state and orchestration responsibilities;
+- streaming, tools, file search, retries, and persistence create behavioral risk;
+- a patch can compile and still change what users experience.
+
+Migration Doctor answers four questions:
+
+1. **What will break, where, and when?**
+2. **Which migration path is supported by current official sources?**
+3. **Which changes are safe to automate?**
+4. **How do we prove that behavior was preserved?**
+
+The current `migration.lock` pins:
+
+- [OpenAI API deprecations](https://developers.openai.com/api/docs/deprecations)
+- [GPT-4o mini Transcribe model](https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe)
+
+Assistants, Agent Builder, Codex, and skill documentation are planned source families, not current rule coverage.
+
+Official documentation changes over time. Migration Doctor versions its source material and never silently resolves a source disagreement. If two current sources imply incompatible destinations, the finding is routed to human review.
+
+## Product thesis
+
+> Static analysis should find evidence. Official sources should constrain the plan. Codex should handle semantic edits. Tests should decide whether the migration is acceptable.
+
+Migration Doctor does not use an LLM to scan a repository. Detection is local and deterministic. Planned Codex remediation will be opt-in and will run only after the tool has produced a scoped, source-backed migration plan.
+
+## Local quickstart
+
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm build
+corepack pnpm run doctor scan fixtures/typescript/direct-model-literal
+corepack pnpm run doctor plan fixtures/typescript/direct-model-literal
+corepack pnpm run doctor migrate fixtures/typescript/direct-model-literal --risk safe
+corepack pnpm run doctor verify fixtures/typescript/direct-model-literal
+```
+
+Use `--format json` for canonical machine output. Execution duration and cache state are written to stderr so the JSON remains byte-stable for the same repository and source lock.
+
+### `scan`
+
+Indexes supported TypeScript files and reports exact evidence without calling an external API or changing the repository.
+
+### `plan`
+
+Combines findings with the locked migration edge and freezes exact edit offsets, source hashes, and verification contracts.
+
+### `migrate`
+
+Produces a deterministic patch preview. This pre-alpha release never applies the patch to the source repository.
+
+### `verify`
+
+Applies the preview in a temporary tree and verifies the changed-file allowlist, exact literal edit, finding removal, and source-tree immutability. It does not yet run repository-specific tests or an audio evaluation corpus.
+
+### Exit codes
+
+- `0`: no blocking finding, or deterministic verification passed;
+- `1`: command completed and blocking migration findings remain;
+- `2`: invalid invocation or configuration;
+- `3`: analysis was incomplete;
+- `4`: `migration.lock` or a locked artifact is missing or invalid;
+- `5`: patch planning or verification failed.
+
+## Current rule coverage
+
+| Rule | Scope | Tier | Verification |
+| --- | --- | --- | --- |
+| `gpt-4o-mini-transcribe-2025-03-20` to `gpt-4o-mini-transcribe-2025-12-15` | Direct string literal in a recognized OpenAI TypeScript `audio.transcriptions.create` call | A | Exact edit and file-boundary contracts; runtime transcript parity not verified |
+
+The rule intentionally ignores comments, documentation strings, unrelated `model` properties, aliases, wrappers, computed properties, environment configuration, and Realtime calls. Unsupported forms produce no finding in this phase; see [limitations](docs/limitations.md).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Official OpenAI source snapshots] --> B[migration.lock]
+    C[TypeScript repository] --> D[Deterministic AST analyzer]
+    B --> E[Frozen patch plan]
+    D --> E
+    E --> F[Patch preview]
+    F --> G[Temporary-tree verification]
+    G --> H[Markdown and canonical JSON]
+```
+
+Codex remediation, Python, SARIF, HTML, caching, and graph traversal remain planned. The implemented dependency direction is documented in [architecture](docs/architecture.md).
+
+### 1. Versioned migration graph
+
+Every migration edge records:
+
+- source model, API, SDK surface, or product;
+- recommended destination;
+- announcement and shutdown dates;
+- official source URL and retrieval time;
+- affected SDK versions and language constraints;
+- expected behavioral changes;
+- whether the destination is also deprecated;
+- confidence and required review level.
+
+A generated `migration.lock` pins the source snapshot used for a run so that results remain reproducible after documentation changes.
+
+### 2. Deterministic repository analysis
+
+The analyzer is responsible for evidence, not prose. The current rule detects only the direct TypeScript call shape documented above. Future analyzers may cover:
+
+- deprecated model identifiers;
+- OpenAI SDK versions and imports;
+- Assistants, Threads, and Runs usage;
+- reusable prompt objects;
+- streaming and tool-calling patterns;
+- file-search and code-interpreter usage;
+- aliases, wrappers, and dynamic model selection;
+- configuration and environment-based references.
+
+Findings include a stable rule ID, file and line evidence, shutdown date, source references, confidence, and an automation tier.
+
+### 3. Risk-tiered transformation
+
+| Tier | Meaning | Default behavior |
+| --- | --- | --- |
+| **A: deterministic** | The transformation is syntax-local and the official mapping is unambiguous. | Patch preview; auto-apply only when requested. |
+| **B: Codex-assisted** | The migration changes state, orchestration, or multiple files. | Source-backed plan, constrained Codex patch, mandatory verification. |
+| **C: plan only** | Behavior cannot be established automatically or sources require interpretation. | No code change; emit an actionable plan and abstention reason. |
+
+No tier may auto-merge or bypass repository tests.
+
+### 4. Behavioral verification
+
+Compilation is necessary but insufficient. The current verifier proves the patch mechanics only. Future behavioral verification can include:
+
+- structured-output compatibility;
+- tool name, argument, and sequence checks;
+- conversation-state preservation;
+- streaming-event ordering;
+- error, retry, and timeout behavior;
+- token, latency, and cost comparison;
+- repository unit and integration tests;
+- changed-file allowlists and unrelated-diff checks.
+
+> Codex proposes. Tests decide.
+
+## Coverage roadmap
+
+| Area | Target level |
+| --- | --- |
+| TypeScript | One direct Transcriptions snapshot rule implemented |
+| JavaScript | Planned |
+| Python | Analyze, transform, and verify |
+| Deprecated model IDs | Deterministic migration when compatibility is established |
+| Assistants to Responses + Conversations | Deep migration support |
+| Streaming and function calling | Deep migration support |
+| Reusable prompt objects | Migration to application-managed configuration |
+| File search and code interpreter | Detect first; transform only with proven contracts |
+| Agent Builder and Evals | Evidence-backed plan; no speculative rewrite |
+| Custom agent frameworks | Detect known OpenAI surfaces and abstain on unknown orchestration |
+
+Coverage is published per rule. A broad claim such as “supports Assistants migration” is not allowed without a feature-level matrix.
+
+## Example finding
+
+```json
+{
+  "id": "206aba3c539f65ed2bd4cb216e800722918d5bd76c2c67f75c4251df0a1738f3",
+  "ruleId": "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20",
+  "severity": "error",
+  "location": {
+    "file": "src/transcribe.ts",
+    "line": 11,
+    "column": 13
+  },
+  "evidence": "gpt-4o-mini-transcribe-2025-03-20",
+  "migrationEdgeIds": [
+    "openai.model.gpt-4o-mini-transcribe-2025-03-20.to.2025-12-15"
+  ],
+  "confidence": "high",
+  "automationTier": "A"
+}
+```
+
+The report also records exact offsets and the original file hash so a stale plan fails closed.
+
+## Quality targets
+
+These are release gates, not current results:
+
+- at least **99% precision** on the labeled benchmark corpus;
+- at least **95% recall** on supported patterns;
+- **100% source provenance** for migration guidance;
+- **zero unverified auto-applies**;
+- deterministic output for the same repository and source lock;
+- formatting and comments preserved by supported codemods;
+- explicit abstention for unsupported cases;
+- SDK version-matrix tests on macOS and Linux;
+- secret and transcript redaction in every reporter.
+
+LLM judgment alone cannot mark a migration as verified.
+
+## Performance targets
+
+Targets must be published with hardware, OS, repository composition, and tool version:
+
+- one million lines of code scanned in **30 seconds or less** from a cold cache;
+- incremental scan completed in **3 seconds or less** from a warm cache;
+- **zero API calls** during detection;
+- content-hash caching for unchanged files;
+- parallel analysis of independent files;
+- Codex invoked only for findings that require semantic remediation;
+- latency, peak memory, token usage, and API cost reported together.
+
+The benchmark suite will treat performance regressions as release blockers.
+
+## Security and privacy
+
+- Local analysis is the default.
+- Detection never requires an OpenAI API key.
+- No current command sends source files to a model.
+- Codex remediation is not implemented yet; its future contract requires explicit opt-in and the smallest sufficient scope.
+- Verification uses a temporary repository copy.
+- Full-access execution is not part of the supported workflow.
+- Secrets, environment values, raw transcripts, and customer code are excluded from public reports.
+- No patch is pushed, opened as a pull request, deployed, or merged without explicit user action.
+
+## Evaluation
+
+The current deterministic suite contains five fixture classes and 22 automated tests covering the source lock, positive and negative analysis, symbol shadowing, stale plans, canonical reports, patch preview, temporary-tree verification, and CLI exit codes. This is implementation evidence, not a public accuracy benchmark.
+
+The public benchmark will include:
+
+- at least 100 labeled TypeScript and Python fixtures;
+- supported OpenAI SDK version combinations;
+- positive and negative controls;
+- aliases, wrappers, dynamic configuration, comments, and dead code;
+- streaming, tools, and conversation state;
+- ambiguous cases that must abstain;
+- replacement targets that are themselves scheduled for shutdown;
+- source disagreement requiring human review.
+
+The benchmark reports precision, recall, false-positive classes, transformation success, behavioral parity, abstention quality, latency, memory, and cost.
+
+## Outputs
+
+Implemented now:
+
+- terminal Markdown;
+- canonical JSON;
+- exact file and line findings;
+- source-backed patch plans;
+- patch previews;
+- deterministic verification ledgers.
+
+Planned after the core stabilizes:
+
+- `migration-report.md`;
+- `migration-report.json`;
+- SARIF for code-host annotations;
+- a static HTML report;
+- a scoped patch and verification ledger;
+- an optional pull-request summary;
+- a product-feedback memo that separates documentation friction from tool limitations.
+
+## Implemented repository structure
+
+```text
+migration-doctor/
+├── packages/
+│   ├── core/
+│   ├── cli/
+│   ├── language-typescript/
+│   └── reporters/
+├── data/
+│   ├── sources/
+│   └── migrations/
+├── fixtures/
+│   └── typescript/
+├── docs/
+│   ├── architecture.md
+│   ├── methodology.md
+│   ├── safety.md
+│   └── limitations.md
+├── tests/
+├── AGENTS.md
+├── migration.lock
+└── README.md
+```
+
+## Development sequence
+
+The project is quality-gated rather than date-gated:
+
+1. **Done:** establish schemas, source provenance, and a TypeScript vertical slice.
+2. **Done:** prove deterministic detection and Markdown/JSON reporting.
+3. **Current:** expand the first deterministic migration from patch mechanics to repository and audio behavioral contracts.
+4. Add Assistants detection, planning, and an abstaining unsupported case.
+5. Add isolated Codex remediation and behavioral verification.
+6. Publish the benchmark and performance ledger.
+7. Add Python through the same language-adapter contract.
+8. Package the validated workflow as a Codex skill, then as a plugin if broader distribution is justified.
+
+Each step must improve the evidence base; feature count alone is not progress.
+
+## Non-goals
+
+- a general-purpose dependency updater;
+- a chat wrapper around migration documentation;
+- speculative rewriting of arbitrary agent frameworks;
+- automatic merging or deployment;
+- a hosted service that uploads private repositories;
+- claims of full migration coverage without a public rule matrix;
+- an official benchmark of OpenAI models or products.
+
+## Contributing
+
+The contribution model will be defined after the first vertical slice. Every migration rule will require:
+
+1. an official source;
+2. positive and negative fixtures;
+3. a declared automation tier;
+4. a verification contract;
+5. benchmark coverage;
+6. a documented abstention boundary.
+
+## License
+
+License selection is pending. Do not copy external fixtures or code into the repository until a compatible project license and provenance policy are established.
