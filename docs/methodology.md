@@ -176,6 +176,86 @@ This method proves that the comparator detects declared fixture regressions. It 
 the fixture represents an arbitrary application, that either integration produced the observation,
 or that model meaning, latency, token use, or cost was preserved.
 
+## Codex remediation boundary
+
+Phase 5 reviewed the official [Codex SDK](https://learn.chatgpt.com/docs/codex-sdk),
+[non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode), and
+[sandbox and approval guidance](https://learn.chatgpt.com/docs/agent-approvals-security), including
+the [permission profile](https://learn.chatgpt.com/docs/permissions) and configuration precedence
+references, on 2026-08-06. These pages constrain adapter execution rather than define an OpenAI API
+migration edge, so they are not added to `migration.lock` or represented as product-rule evidence.
+
+The SDK did not expose every reviewed CLI isolation switch, so the adapter invokes `codex exec`
+directly. It requires the exact release output `codex-cli 0.146.0`, rejects prerelease or build
+suffixes, resolves one absolute executable, and requires its SHA-256 to match an independently
+trusted operator pin before version preflight. It rechecks the same bytes after preflight and around
+execution. A local preflight with a dummy credential confirmed that the complete override vector
+passed `--strict-config` on that release and reached controller connection; no authenticated model
+response was used.
+
+A semantic plan is built only from supported, unambiguous Tier B findings. It uses an independent
+schema and freezes the full Git revision, canonical source preimage hashes, required and forbidden
+paths, the complete selected migration-edge record hash, behavior input hashes, bounded
+instructions, the internal adapter ID, and a rule-specific verifier with source and target models.
+Before manifest creation and again before execution, the adapter exports the frozen revision,
+re-scans it with the built-in TypeScript adapter, recreates the plan through
+`createSemanticPatchPlan`, and requires canonical equality. Handcrafted plans that change the rule,
+finding IDs, automation tier, review requirement, edge endpoint, or semantic verifier fail before a
+model run. Only the branded object returned by `loadMigrationRegistry` is accepted. The adapter
+reads it once into a schema-validated snapshot and requires that snapshot to retain the canonical
+integrity hash recorded at load time. The loader validates locked artifact hashes, while the
+unsigned `migration.lock` remains a repository trust input. Existing Tier A report serialization
+remains unchanged.
+
+Every run creates fresh mode-0700 OS and Codex homes. Only an explicit single-run `CODEX_API_KEY`
+crosses the authentication boundary; ambient homes, credentials, rules, and environment secrets do
+not. The runner rejects known system configuration, managed configuration, managed requirements,
+macOS MDM values, and administrator skill directories. It disables project instructions, user
+configuration, reviewed bundled skills, persistence, hooks, MCP, apps, plugins, browser and
+computer use, shell and JavaScript execution, web search, and shell-environment inheritance. The
+permission profile denies host-root reads, temporary roots, and model tool network while allowing
+the controller to contact the OpenAI API. Any non-reasoning, non-file-change, non-message item fails
+closed.
+
+The proposal workspace contains only tracked regular UTF-8 blobs read from the exact commit. The
+Git index must equal HEAD; unstaged worktree changes are permitted but ignored. Fixed Git overrides
+disable local fsmonitor execution, hooks, replacement objects, global and system configuration,
+lazy fetch, and attribute-based behavior. The model's structured response declares status, plan
+hash, and changed paths, but actual workspace bytes are the proposal. Snapshot limits, portable
+path rules, credential screening, and no-follow file access reject creation, deletion, rename,
+symlink, special, binary, oversized, or unexpected content.
+
+Accepted bytes are copied to a standalone export of the frozen Git tree with no linked metadata.
+The internal scanner must remove the findings, and the trusted semantic verifier independently
+constructs the only acceptable candidate by replacing the bound transcription model literals in
+the original bytes. Source and target model IDs must also satisfy the stable identifier grammar, so
+they cannot escape the bound string literal. The candidate must equal those expected bytes exactly,
+preventing syntax-valid deletion, property injection, or unrelated edits from becoming the
+verification oracle. No repository build, test, script, binary, or generated candidate code is
+executed. The separately declared candidate observation is still only caller-supplied offline
+fixture evidence and always records repository runtime behavior as unverified.
+
+The redacted audit hashes the manifest, structured proposal, allowed-file patch, repository check,
+behavior fixture report, and executed CLI launcher. Complete snapshots also commit to canonical
+before and after path/hash/directory state, including rejected unexpected entries, without exposing
+their names. Audits record expected paths, stable outcomes, token counts, requested model, CLI
+version, requested and observed executable hashes, and requested sandbox policy. The final
+repository contract is `original_repository_revision_unchanged`: it binds HEAD and the index, not
+ignored unstaged or untracked worktree bytes. Raw JSONL, thread IDs, prompts, responses, commands,
+source or candidate bodies, unexpected paths, fixture values, absolute paths, and timestamps are
+excluded. A requested policy in a failed audit is not a claim that every requested control was
+enforced before failure.
+
+Twenty-six adapter tests use executable fixtures and a real TypeScript Tier B re-scan. They cover
+the passing path; provenance replay; forged targets and tiers; revision, edge, preimage, and task
+binding; source deletion and destructive valid syntax; scope and snapshot expansion; tool events;
+symlinks; portable paths; credentials; exact Git blobs; local fsmonitor and replacement objects;
+structured-output failures; redaction commitments; exact CLI arguments and version; executable
+pin mismatches and identity changes; immutable runner dispatch; clean abstention; and malformed
+JSONL. They prove local orchestration and rejection logic, not
+authenticated model quality, serving-model identity, operating-system parity, repository runtime
+behavior, or live OpenAI API compatibility.
+
 ## Claims boundary
 
 Passing deterministic edit verification means the patch mechanics satisfy the declared contracts.

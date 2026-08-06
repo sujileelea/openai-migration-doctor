@@ -1,7 +1,8 @@
 # Limitations
 
 Migration Doctor is pre-alpha. It supports one deterministic model-snapshot replacement and
-review-only Assistants API analysis for a constrained TypeScript subset.
+review-only Assistants API analysis for a constrained TypeScript subset. It also contains a
+programmatic Codex remediation boundary, but no production rule or CLI command can invoke it.
 
 ## Detection
 
@@ -48,6 +49,61 @@ only to the checked-in supported synthetic labels; no public benchmark claim is 
   unverified even when an offline fixture contract passes.
 - SDK version compatibility is not inferred. Post-patch repository checks will be required before that claim is possible.
 
+## Codex adapter
+
+- Current locked rules remain unchanged: the model rule is Tier A and all Assistants findings are
+  Tier C, so no CLI flow produces `requiresCodex: true`. Core now provides
+  `createSemanticPatchPlan` for revision-backed, supported Tier B scans, but no current rule or CLI
+  route calls it.
+- The adapter requires a top-level Git repository whose index equals HEAD, existing tracked UTF-8
+  files, exact Codex CLI `0.146.0`, an operator-pinned launcher SHA-256, and an explicit single-run
+  `CODEX_API_KEY`. Unstaged and untracked worktree changes are allowed but ignored because every
+  input is read from the frozen commit; the audit proves revision and index stability, not full
+  worktree stability. Fresh OS and Codex homes are created for every run; saved authentication is
+  neither read nor supported.
+- File creation, deletion, rename, symlinks, non-regular files, binaries, files larger than 2 MiB,
+  total exposed content larger than 10 MiB, sensitive path classes, and high-confidence credential
+  formats are rejected. The initial schema supports at most 64 exposed files, 4,096 filesystem
+  entries, 32 path segments, and portable path names.
+- The model workspace contains only frozen exposed files and no Git metadata. Verification exports
+  all regular blobs from the exact commit into a separate standalone snapshot. Repositories with a
+  tracked symbolic link are rejected by this conservative exporter.
+- Repository verification is static only. The adapter supports its built-in TypeScript analyzer and
+  one trusted transcription-model exact-rewrite verifier; it accepts no caller-selected adapter or
+  repository verdict. It executes no build, typecheck, test, package script, repository binary, or
+  generated candidate code.
+- The behavior proof remains `offline-fixture` evidence with `liveApiUsed: false`. A successful
+  adapter audit compares a caller-supplied candidate observation and does not establish that the
+  candidate repository produced it. Runtime and live-API parity remain unverified.
+- Model tool network is disabled, but the Codex controller requires network access to send the
+  exposed source and prompt to the OpenAI API. The subprocess contains the single-run API key.
+  Current automated tests use fake executable fixtures rather than a live authenticated request.
+- The runner rejects the documented system, managed, MDM, and administrator skill layers before a
+  run. A privileged local actor can race that preflight, and an unmodeled future configuration layer
+  requires a new exact-version review. The audit field is named `requestedSandboxPolicy` because a
+  failed run does not prove that every requested control took effect.
+- The Codex CLI launcher, its interpreter and dependent resources, OS sandbox implementation, Git,
+  Node.js, core planner, and built-in TypeScript analyzer are trusted. The audit hashes the resolved
+  launcher file and requires it to match the caller's independent pin, but it does not hash the
+  interpreter or dependency closure, authenticate that pin against an OpenAI release manifest, or
+  attest the serving model. `requestedModel` records only the CLI request.
+- The adapter accepts only the branded registry object returned by `loadMigrationRegistry`, reads
+  each field once into a schema-validated snapshot, and rejects post-load mutation by canonical
+  integrity hash. The loader verifies schemas and artifact hashes, but the checked-in
+  `migration.lock` is unsigned and remains a repository trust anchor.
+- Path handling rejects symlink ancestors and uses `O_NOFOLLOW` for leaf access, but Node does not
+  expose an `openat`-style API for a single race-free component walk. The source repository and
+  temporary workspaces must not be modified concurrently by an adversarial local process.
+- The exact-revision exporter caps each Git subprocess at 64 MiB and rejects non-UTF-8 Git paths,
+  tracked symlinks, submodules, and non-regular Git modes. Fixed Git options suppress local
+  fsmonitor, hooks, replacement objects, global/system configuration, lazy fetch, and attributes;
+  unusual Git implementations outside the tested command contract are not supported.
+- An unexpected workspace path is omitted from the audit for privacy. Complete snapshots bind it
+  inside an opaque before/after workspace hash; an incomplete oversized snapshot records no after
+  commitment and always fails.
+- Audit objects are available through the package API only. They do not yet have a CLI command,
+  saved-file workflow, Markdown reporter, cost estimate, or public rule fixture.
+
 ## Sources and reports
 
 - The production lock contains five dated source records and two reviewed migration edges: one
@@ -69,4 +125,5 @@ only to the checked-in supported synthetic labels; no public benchmark claim is 
 
 - The package is not published.
 - License selection is pending.
-- Codex remediation, Python, a public benchmark, a skill, and plugin packaging are not implemented.
+- Production Codex-assisted rules and CLI orchestration, Python, a public benchmark, a skill, and
+  plugin packaging are not implemented.

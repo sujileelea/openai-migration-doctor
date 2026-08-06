@@ -2,7 +2,7 @@
 
 > Deterministic detection, source-grounded planning, scoped transformation, and behavioral verification for OpenAI API migrations.
 
-**Project status:** pre-alpha. Local source builds support one deterministic TypeScript model-snapshot migration end to end, review-only Assistants API analysis, and offline before/after behavioral contract verification. The package is not published, Assistants transformation is not implemented, and repository runtime or live-API parity is not evaluated.
+**Project status:** pre-alpha. Local source builds support one deterministic TypeScript model-snapshot migration end to end, review-only Assistants API analysis, offline before/after behavioral contract verification, and an opt-in Codex remediation adapter boundary. No production rule or CLI command currently routes a plan to Codex, Assistants transformation is not implemented, and repository runtime or live-API parity is not evaluated.
 
 Migration Doctor is an **unofficial developer tool intended for open-source release** after license and provenance review. It is not an OpenAI product and is not affiliated with or endorsed by OpenAI.
 
@@ -38,7 +38,15 @@ Official documentation changes over time. Migration Doctor versions reviewed sou
 
 > Static analysis should find evidence. Official sources should constrain the plan. Codex should handle semantic edits. Tests should decide whether the migration is acceptable.
 
-Migration Doctor does not use an LLM to scan a repository. Detection is local and deterministic. Planned Codex remediation will be opt-in and will run only after the tool has produced a scoped, source-backed migration plan.
+Migration Doctor does not use an LLM to scan a repository. Detection is local and deterministic.
+The optional `codex-adapter` can run only after a caller supplies a frozen, source-backed semantic
+plan, the exact branded registry returned by `loadMigrationRegistry`, and declared offline
+behavioral evidence. The loader validates every locked artifact hash, and the adapter reads a
+schema-validated registry snapshot once and verifies its canonical integrity; the checked-in,
+unsigned `migration.lock` remains the trust anchor. Before creating or running the separately
+hashed manifest, the adapter exports the exact Git revision, re-scans it with its built-in
+TypeScript adapter, and reproduces the plan byte for byte. The current locked rules do not produce a
+Tier B plan, so normal CLI workflows never invoke Codex.
 
 ## Local quickstart
 
@@ -60,9 +68,9 @@ Use `--format json` for canonical machine output. Execution duration and cache s
 stderr so JSON remains byte-stable for the same command inputs and source lock.
 
 Locked source-registry artifacts and offline behavior fixtures remain on their independent schema
-`1.0.0`. Findings and command reports, including behavior reports, use schema `3.0.0`; these
-versions are independent so report-contract changes do not rewrite reviewed source evidence or
-fixture inputs.
+`1.0.0`. Findings and command reports, including behavior reports, use schema `3.0.0`. Semantic
+plans and Codex adapter records each use a separate schema `1.0.0`. These lifecycles are independent
+so changes to one contract do not silently rewrite another.
 
 ### `scan`
 
@@ -116,10 +124,16 @@ flowchart LR
     D --> E
     E --> F[Patch preview]
     F --> G[Temporary-tree verification]
+    E --> J[Bound semantic manifest]
+    J --> K[Allowlist-only Codex proposal]
+    K --> L[Standalone verification snapshot]
+    L --> H
     G --> H[Markdown and canonical JSON]
 ```
 
-Codex remediation, Python, SARIF, HTML, and caching remain planned. The implemented dependency direction is documented in [architecture](docs/architecture.md).
+Production Tier B rules and a CLI Codex surface, Python, SARIF, HTML, and caching remain planned.
+The adapter package is removable and neither core nor CLI imports it. The implemented dependency
+direction is documented in [architecture](docs/architecture.md).
 
 ### 1. Versioned migration graph
 
@@ -268,8 +282,12 @@ The benchmark suite will treat performance regressions as release blockers.
 - Local analysis is the default.
 - Detection never requires an OpenAI API key.
 - No current command sends source files to a model.
-- Codex remediation is not implemented yet; its future contract requires explicit opt-in and the smallest sufficient scope.
-- Verification uses a temporary repository copy.
+- The optional Codex adapter is not reachable from current CLI commands or production rules. Its
+  caller must opt in with a revision- and preimage-bound Tier B semantic plan and a single-run
+  `CODEX_API_KEY`, plus an independently trusted SHA-256 for the Codex CLI launcher. The launcher
+  hash is checked before version preflight and again around execution. Codex sends only the exposed
+  source scope to the OpenAI controller; model tool network access remains disabled.
+- Codex verification uses a standalone export of the exact frozen Git revision.
 - Full-access execution is not part of the supported workflow.
 - Secrets, environment values, raw transcripts, and customer code are excluded from public reports.
 - No patch is pushed, opened as a pull request, deployed, or merged without explicit user action.
@@ -277,11 +295,12 @@ The benchmark suite will treat performance regressions as release blockers.
 ## Evaluation
 
 The current deterministic suite contains 12 TypeScript fixture classes, five checked-in synthetic
-graph fixtures, nine offline behavior fixtures, and 95 automated tests. It covers schema
+graph fixtures, nine offline behavior fixtures, and 130 automated tests. It covers schema
 invariants, byte-exact source locks, graph traversal and conflicts, constrained-path abstention,
 model and Assistants analysis, symbol identity and alias boundaries, stable unsupported-pattern
 routing, stale plans, locale-independent canonical reports, atomic abstention, patch preview,
-temporary-tree verification, isolated behavioral regressions, report redaction, and CLI exit codes.
+temporary-tree verification, isolated behavioral regressions, Codex scope and tool-policy failures,
+report redaction, and CLI exit codes.
 
 On the authored Phase 3 corpus, supported detection measures 19 true positives, 0 false positives, and 0 false negatives: 100% precision and 100% recall. All 13 labeled high-signal abstentions route exactly, and a separate 34-call method matrix produces the expected 58 atomic feature findings. These are synthetic implementation results, not a public benchmark or a claim about arbitrary repositories.
 
@@ -309,7 +328,11 @@ Implemented now:
 - source-backed manual migration actions;
 - patch previews;
 - deterministic verification ledgers;
-- offline behavioral contract reports with canonical input hashes and path-only mismatch evidence.
+- offline behavioral contract reports with canonical input hashes and path-only mismatch evidence;
+- redacted Codex remediation audits containing expected paths, workspace commitments, contract
+  outcomes, requested policy and model, token counts, and the requested and executed CLI hashes, but
+  no prompt, response, command, source body, unexpected path, temporary path, or thread ID. Failed
+  model runs also return a redacted audit when execution reached the runner.
 
 Planned after the core stabilizes:
 
@@ -317,7 +340,6 @@ Planned after the core stabilizes:
 - `migration-report.json`;
 - SARIF for code-host annotations;
 - a static HTML report;
-- a scoped patch and verification ledger;
 - an optional pull-request summary;
 - a product-feedback memo that separates documentation friction from tool limitations.
 
@@ -328,6 +350,7 @@ migration-doctor/
 ├── packages/
 │   ├── core/
 │   ├── cli/
+│   ├── codex-adapter/
 │   ├── language-typescript/
 │   └── reporters/
 ├── data/
@@ -357,8 +380,8 @@ The project is quality-gated rather than date-gated:
 2. **Done:** prove graph traversal, destination-deprecation checks, conflict records, and Tier C abstention.
 3. **Done:** add Assistants analysis and useful unsupported-pattern abstention without transformation.
 4. **Done:** define offline application behavioral contracts and prove precise failures against deliberately broken observations.
-5. **Current:** add isolated Codex remediation that is constrained by the frozen plan and the same contracts.
-6. Publish the benchmark and performance ledger.
+5. **Done:** add isolated Codex remediation infrastructure constrained by the frozen plan and the same contracts; no production rule routes into it yet.
+6. **Current:** publish the benchmark and performance ledger.
 7. Add Python through the same language-adapter contract.
 8. Package the validated workflow as a Codex skill, then as a plugin if broader distribution is justified.
 
