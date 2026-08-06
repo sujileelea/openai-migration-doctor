@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0.0",
+  "edge": {
+    "id": "openai.product.assistants-api.to.responses-and-conversations",
+    "from": {
+      "kind": "product",
+      "id": "assistants-api",
+      "displayName": "Assistants API"
+    },
+    "to": {
+      "kind": "product",
+      "id": "responses-and-conversations",
+      "displayName": "Responses API + Conversations API"
+    },
+    "announcedAt": "2025-08-26",
+    "shutdownAt": "2026-08-26",
+    "sources": [
+      {
+        "url": "https://developers.openai.com/api/docs/deprecations",
+        "title": "Deprecations | OpenAI API",
+        "retrievedAt": "2026-08-06T05:59:25Z",
+        "contentHash": "fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962"
+      },
+      {
+        "url": "https://developers.openai.com/api/docs/assistants/migration",
+        "title": "Assistants migration guide | OpenAI API",
+        "retrievedAt": "2026-08-06T05:59:25Z",
+        "contentHash": "6620f25e6ee958973bc4eaad789ff3f9dc88641c0b69d1166819db5d37ed24e5"
+      },
+      {
+        "url": "https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object",
+        "title": "Migrate from prompt objects | OpenAI API",
+        "retrievedAt": "2026-08-06T05:59:25Z",
+        "contentHash": "3de9c5fe52bbd457a3b2f187aad7c7319a173a6acff35330bcfea77c566b7971"
+      }
+    ],
+    "languages": ["typescript"],
+    "behaviorChanges": [
+      "Execute migrated workflows through the Responses API and keep model selection, instructions, and tool declarations in application-owned configuration instead of reusable Prompt objects.",
+      "Use the Conversations API only when the application requires durable server-side conversation state; Responses can also run without a Conversation.",
+      "Backfill Thread messages to Conversation Items deliberately because OpenAI does not provide an automated Thread-to-Conversation migration tool.",
+      "Replace Run and Run Step orchestration with Responses and Items; application code owns history pruning, tool loops, and retries.",
+      "Review streaming, tool-calling, file-search, and code-interpreter semantics before changing code."
+    ],
+    "automationTier": "C",
+    "reviewRequired": true
+  }
+}

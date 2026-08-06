@@ -64,15 +64,33 @@ describe("source lock", () => {
   it("loads the reviewed migration edge and official source hashes", async () => {
     const registry = await loadMigrationRegistry(PROJECT_ROOT);
 
-    expect(registry.edges).toHaveLength(1);
-    expect(registry.sources).toHaveLength(2);
-    expect(registry.edges[0]).toMatchObject({
-      from: { kind: "model", id: "gpt-4o-mini-transcribe-2025-03-20" },
-      to: { kind: "model", id: "gpt-4o-mini-transcribe-2025-12-15" },
-      announcedAt: "2026-07-20",
-      shutdownAt: "2027-01-20",
-      automationTier: "A",
-    });
+    expect(registry.edges).toHaveLength(2);
+    expect(registry.sources).toHaveLength(5);
+    expect(registry.edges).toContainEqual(
+      expect.objectContaining({
+        from: expect.objectContaining({
+          kind: "model",
+          id: "gpt-4o-mini-transcribe-2025-03-20",
+        }),
+        to: expect.objectContaining({
+          kind: "model",
+          id: "gpt-4o-mini-transcribe-2025-12-15",
+        }),
+        announcedAt: "2026-07-20",
+        shutdownAt: "2027-01-20",
+        automationTier: "A",
+      }),
+    );
+    expect(registry.edges).toContainEqual(
+      expect.objectContaining({
+        from: expect.objectContaining({ kind: "product", id: "assistants-api" }),
+        to: expect.objectContaining({ kind: "product", id: "responses-and-conversations" }),
+        announcedAt: "2025-08-26",
+        shutdownAt: "2026-08-26",
+        automationTier: "C",
+        reviewRequired: true,
+      }),
+    );
   });
 
   it("fails closed when a locked artifact changes", async () => {
@@ -141,6 +159,7 @@ describe("source lock", () => {
 
     expect(registry.edges.map((edge) => edge.to?.id)).toEqual([
       "gpt-4o-mini-transcribe-2025-12-15",
+      "responses-and-conversations",
       "synthetic-other-destination",
     ]);
   });

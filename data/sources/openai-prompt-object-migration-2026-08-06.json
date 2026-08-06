@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "openai.prompts.migration.2026-08-06",
+  "source": {
+    "url": "https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object",
+    "title": "Migrate from prompt objects | OpenAI API",
+    "retrievedAt": "2026-08-06T05:59:25Z",
+    "contentHash": "3de9c5fe52bbd457a3b2f187aad7c7319a173a6acff35330bcfea77c566b7971"
+  },
+  "claims": [
+    "Reusable Prompt objects were deprecated on 2026-06-03, and v1/prompts is scheduled to shut down on 2026-11-30.",
+    "Prompt content should move out of managed Prompt objects and into application code.",
+    "Responses requests should pass generated messages directly as input instead of referencing Prompt objects.",
+    "Prompt variables should become application function arguments, and prompt versioning should move to the repository."
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "createdAt": "2026-08-05T08:14:03Z",
+  "createdAt": "2026-08-06T05:59:25Z",
   "artifacts": [
     {
       "kind": "source",
@@ -13,9 +13,29 @@
       "sha256": "6fae0611e2a48c2750775cc35ad160c312e851d9c5fbdd9da052c3dfad4d8a16"
     },
     {
+      "kind": "source",
+      "path": "data/sources/openai-assistants-deprecations-2026-08-06.json",
+      "sha256": "2e7cf8bc90d310a851832f69336bb152658a28566845ec3ac012c40e872ef69d"
+    },
+    {
+      "kind": "source",
+      "path": "data/sources/openai-assistants-migration-2026-08-06.json",
+      "sha256": "41bcec692f6be118880b847361c1761ef309aa9245faead92b9971b15400ffc9"
+    },
+    {
+      "kind": "source",
+      "path": "data/sources/openai-prompt-object-migration-2026-08-06.json",
+      "sha256": "1ce764aa047a92077ff5e0995c038e5833e89330d6e2ffe4bc51c2a7dca1e03a"
+    },
+    {
       "kind": "migration",
       "path": "data/migrations/gpt-4o-mini-transcribe-2025-03-20.json",
       "sha256": "0e09ed5e0b1f1e6e141a813a25fbd70e76aec5dce8f4087dc46bd421a46de4d3"
+    },
+    {
+      "kind": "migration",
+      "path": "data/migrations/assistants-api-to-responses-and-conversations.json",
+      "sha256": "ff85b0b124fe17e67b06800329e0d34ea0ee0ba89a3df656e5ed86dd0c31b7dd"
     }
   ]
 }
