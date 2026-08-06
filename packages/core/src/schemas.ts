@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { BehaviorVerifyReport } from "./behavior.js";
 
 export const SOURCE_SCHEMA_VERSION = "1.0.0" as const;
 export const REPORT_SCHEMA_VERSION = "3.0.0" as const;
@@ -536,4 +537,4 @@ export type PatchPreview = z.infer<typeof PatchPreviewSchema>;
 export type PatchPreviewFile = z.infer<typeof PatchPreviewFileSchema>;
 export type VerificationResult = z.infer<typeof VerificationResultSchema>;
 export type VerifyReport = z.infer<typeof VerifyReportSchema>;
-export type Report = ScanResult | PlanReport | PatchPreview | VerifyReport;
+export type Report = ScanResult | PlanReport | PatchPreview | VerifyReport | BehaviorVerifyReport;

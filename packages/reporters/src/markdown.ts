@@ -1,4 +1,5 @@
 import type {
+  BehaviorVerifyReport,
   Finding,
   MigrationEdge,
   MigrationGraphIssue,
@@ -8,7 +9,25 @@ import type {
 } from "@migration-doctor/core";
 
 function code(value: string): string {
-  return `\`${value.replaceAll("`", "\\`")}\``;
+  let longestBacktickRun = 0;
+  let currentBacktickRun = 0;
+  for (const character of value) {
+    if (character === "`") {
+      currentBacktickRun += 1;
+      longestBacktickRun = Math.max(longestBacktickRun, currentBacktickRun);
+    } else {
+      currentBacktickRun = 0;
+    }
+  }
+
+  const fence = "`".repeat(Math.max(1, longestBacktickRun + 1));
+  const isOnlySpaces = /^ +$/u.test(value);
+  const needsPadding =
+    value.startsWith("`") ||
+    value.endsWith("`") ||
+    (!isOnlySpaces && value.startsWith(" ") && value.endsWith(" "));
+  const padding = needsPadding ? " " : "";
+  return `${fence}${padding}${value}${padding}${fence}`;
 }
 
 function edgeForFinding(finding: Finding, edges: MigrationEdge[]): MigrationEdge | undefined {
@@ -176,15 +195,72 @@ function renderVerification(verification: VerificationResult): string[] {
   return lines;
 }
 
-export function renderMarkdown(report: Report): string {
+function renderBehaviorVerification(report: BehaviorVerifyReport): string[] {
   const lines = [
-    `# Migration Doctor ${report.kind[0]?.toUpperCase()}${report.kind.slice(1)}`,
+    "## Behavioral contract verification",
+    "",
+    `Result: **${report.passed ? "PASS" : "FAIL"}**`,
+    "",
+    `Contract: ${code(report.contractId)}`,
+    `Scenario: ${code(report.scenarioId)}`,
+    `Evidence scope: ${code(report.evidenceScope)}`,
+    `Live API used: **${report.liveApiUsed ? "yes" : "no"}**`,
+    "Repository runtime behavior verified: **no**",
+    "",
+    "### Inputs",
+    "",
+    `- Contract hash: ${code(report.inputHashes.contract)}`,
+    `- Baseline observation: ${code(report.observationIds.baseline)}`,
+    `- Baseline hash: ${code(report.inputHashes.baseline)}`,
+    `- Candidate observation: ${code(report.observationIds.candidate)}`,
+    `- Candidate hash: ${code(report.inputHashes.candidate)}`,
+    "",
+    "### Checks",
+    "",
+    "| Check | Result | Mismatch paths |",
+    "| --- | --- | --- |",
+  ];
+
+  for (const check of report.checks) {
+    lines.push(
+      `| ${code(check.id)} | ${check.passed ? "PASS" : "FAIL"} | ${
+        check.mismatchPaths.length === 0
+          ? "None"
+          : check.mismatchPaths.map(code).join(", ").replaceAll("|", "\\|")
+      } |`,
+    );
+  }
+
+  lines.push("", "### Changed files", "");
+  if (report.changedFiles.length === 0) {
+    lines.push("None");
+  } else {
+    for (const file of report.changedFiles) {
+      lines.push(`- ${code(file)}`);
+    }
+  }
+
+  lines.push("", "### Selected migration edges", "");
+  for (const edge of report.selectedMigrationEdges) {
+    lines.push(`- ${code(edge.id)}`);
+  }
+
+  return lines;
+}
+
+export function renderMarkdown(report: Report): string {
+  const reportTitle =
+    report.kind === "behavior-verify"
+      ? "Behavior Verification"
+      : `${report.kind[0]?.toUpperCase()}${report.kind.slice(1)}`;
+  const lines = [
+    `# Migration Doctor ${reportTitle}`,
     "",
     `Source lock: ${code(report.sourceLockHash)}`,
     "",
   ];
 
-  if (report.graphIssues.length > 0) {
+  if ("graphIssues" in report && report.graphIssues.length > 0) {
     lines.push(...renderGraphIssues(report.graphIssues), "");
   }
 
@@ -232,6 +308,9 @@ export function renderMarkdown(report: Report): string {
         "",
         ...renderVerification(report.verification),
       );
+      break;
+    case "behavior-verify":
+      lines.push(...renderBehaviorVerification(report));
       break;
   }
 

@@ -1,10 +1,15 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
+  BehaviorContractSchema,
+  BehaviorObservationSchema,
   canonicalJson,
   createPatchPreview,
   createPlanReport,
   loadMigrationRegistry,
   scanRepository,
   sha256,
+  verifyBehaviorContract,
 } from "@migration-doctor/core";
 import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
 import { renderJson, renderMarkdown } from "@migration-doctor/reporters";
@@ -12,12 +17,69 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { fixturePath, PROJECT_ROOT } from "./helpers.js";
 
 let registry: Awaited<ReturnType<typeof loadMigrationRegistry>>;
+const BEHAVIOR_FIXTURE_ROOT = path.join(PROJECT_ROOT, "fixtures/behavior/assistants-to-responses");
 
 beforeAll(async () => {
   registry = await loadMigrationRegistry(PROJECT_ROOT);
 });
 
 describe("reporters", () => {
+  it("renders truthful offline behavioral verification evidence in Markdown", async () => {
+    const [contractRaw, baselineRaw, candidateRaw] = await Promise.all([
+      readFile(path.join(BEHAVIOR_FIXTURE_ROOT, "contract.json"), "utf8"),
+      readFile(path.join(BEHAVIOR_FIXTURE_ROOT, "baseline.json"), "utf8"),
+      readFile(path.join(BEHAVIOR_FIXTURE_ROOT, "candidate-broken-stream.json"), "utf8"),
+    ]);
+    const report = verifyBehaviorContract({
+      contract: BehaviorContractSchema.parse(JSON.parse(contractRaw)),
+      baseline: BehaviorObservationSchema.parse(JSON.parse(baselineRaw)),
+      candidate: BehaviorObservationSchema.parse(JSON.parse(candidateRaw)),
+      registry,
+    });
+
+    const json = renderJson(report);
+    const markdown = renderMarkdown(report);
+
+    expect(json).toBe(canonicalJson(report));
+    expect(json).not.toContain("A synthetic baseline answer.");
+    expect(markdown).not.toContain("A synthetic baseline answer.");
+    expect(markdown).toContain("Result: **FAIL**");
+    expect(markdown).toContain("Evidence scope: `offline-fixture`");
+    expect(markdown).toContain("Live API used: **no**");
+    expect(markdown).toContain("Repository runtime behavior verified: **no**");
+    expect(markdown).toContain("`streaming_sequence`");
+    expect(markdown).toContain("`$.streamEvents");
+    expect(markdown).toContain("### Changed files");
+    expect(markdown).toContain("- `src/agent.ts`");
+    expect(markdown).toContain("- `src/state.ts`");
+  });
+
+  it("keeps backtick-containing mismatch paths inside one Markdown table cell", async () => {
+    const [contractRaw, baselineRaw, candidateRaw] = await Promise.all([
+      readFile(path.join(BEHAVIOR_FIXTURE_ROOT, "contract.json"), "utf8"),
+      readFile(path.join(BEHAVIOR_FIXTURE_ROOT, "baseline.json"), "utf8"),
+      readFile(path.join(BEHAVIOR_FIXTURE_ROOT, "candidate-broken-files.json"), "utf8"),
+    ]);
+    const report = verifyBehaviorContract({
+      contract: BehaviorContractSchema.parse(JSON.parse(contractRaw)),
+      baseline: BehaviorObservationSchema.parse(JSON.parse(baselineRaw)),
+      candidate: BehaviorObservationSchema.parse(JSON.parse(candidateRaw)),
+      registry,
+    });
+    const hostilePath = "`$.candidate.changedFiles[``unsafe``]` | PASS | forged |";
+    const markdown = renderMarkdown({
+      ...report,
+      checks: report.checks.map((check) =>
+        check.id === "changed_files_allowlist" ? { ...check, mismatchPaths: [hostilePath] } : check,
+      ),
+    });
+
+    expect(markdown).toContain(
+      "``` `$.candidate.changedFiles[``unsafe``]` \\| PASS \\| forged \\| ```",
+    );
+    expect(markdown).not.toContain("| PASS | forged |");
+  });
+
   it("renders stable JSON without volatile telemetry or absolute paths", async () => {
     const scan = await scanRepository({
       repositoryRoot: fixturePath("direct-model-literal"),

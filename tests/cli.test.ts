@@ -13,6 +13,7 @@ import {
 } from "./helpers.js";
 
 const CLI_PATH = path.join(PROJECT_ROOT, "packages/cli/dist/index.js");
+const BEHAVIOR_FIXTURE_ROOT = path.join(PROJECT_ROOT, "fixtures/behavior/assistants-to-responses");
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -29,6 +30,17 @@ function runCli(args: string[], environment: NodeJS.ProcessEnv = {}) {
     encoding: "utf8",
     env: { ...process.env, ...environment },
   });
+}
+
+function runBehaviorVerification(candidate: string) {
+  return runCli([
+    "verify-behavior",
+    path.join(BEHAVIOR_FIXTURE_ROOT, "contract.json"),
+    path.join(BEHAVIOR_FIXTURE_ROOT, "baseline.json"),
+    path.join(BEHAVIOR_FIXTURE_ROOT, candidate),
+    "--format",
+    "json",
+  ]);
 }
 
 async function createSyntheticHome(edge: MigrationEdge, sourceLabel: string): Promise<string> {
@@ -50,6 +62,98 @@ function runBlockedCommands(home: string) {
 }
 
 describe("CLI exit-code contract", () => {
+  it("returns 0 for a compatible offline behavioral fixture", () => {
+    const result = runBehaviorVerification("candidate-compatible.json");
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: "3.0.0",
+      kind: "behavior-verify",
+      evidenceScope: "offline-fixture",
+      liveApiUsed: false,
+      passed: true,
+      checks: expect.arrayContaining([expect.objectContaining({ passed: true })]),
+    });
+    expect(result.stderr).toContain("[telemetry]");
+  });
+
+  it.each([
+    ["candidate-broken-text.json", "text_output_shape"],
+    ["candidate-broken-conversation.json", "conversation_state"],
+    ["candidate-broken-stream.json", "streaming_sequence"],
+    ["candidate-broken-tools.json", "tool_call_sequence_and_arguments"],
+    ["candidate-broken-retry.json", "error_retry_behavior"],
+    ["candidate-broken-files.json", "changed_files_allowlist"],
+  ])("returns 5 when %s violates its behavioral contract", (candidate, failedCheckId) => {
+    const result = runBehaviorVerification(candidate);
+
+    expect(result.status).toBe(5);
+    const report = JSON.parse(result.stdout) as {
+      passed: boolean;
+      checks: Array<{ id: string; passed: boolean; mismatchPaths: string[] }>;
+    };
+    expect(report.passed).toBe(false);
+    expect(report.checks.filter((check) => !check.passed)).toEqual([
+      expect.objectContaining({ id: failedCheckId, mismatchPaths: [expect.any(String)] }),
+    ]);
+  });
+
+  it("returns 2 when a behavioral fixture is not valid JSON", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "migration-doctor-behavior-input-"));
+    temporaryDirectories.push(directory);
+    const candidate = path.join(directory, "candidate.json");
+    await writeFile(candidate, "{");
+
+    const result = runCli([
+      "verify-behavior",
+      path.join(BEHAVIOR_FIXTURE_ROOT, "contract.json"),
+      path.join(BEHAVIOR_FIXTURE_ROOT, "baseline.json"),
+      candidate,
+      "--format",
+      "json",
+    ]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("INVALID_CONFIGURATION");
+  });
+
+  it("returns 2 instead of hashing a behavior fixture with an own __proto__ key", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "migration-doctor-behavior-prototype-"));
+    temporaryDirectories.push(directory);
+    const candidate = path.join(directory, "candidate.json");
+    const fixture = JSON.parse(
+      await readFile(path.join(BEHAVIOR_FIXTURE_ROOT, "candidate-compatible.json"), "utf8"),
+    ) as {
+      textOutputs: Array<{ value: Record<string, unknown> }>;
+    };
+    const output = fixture.textOutputs[0];
+    if (!output) {
+      throw new Error("Expected a synthetic text output.");
+    }
+    Object.defineProperty(output.value, "__proto__", {
+      value: { injected: true },
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+    await writeFile(candidate, JSON.stringify(fixture));
+
+    const result = runCli([
+      "verify-behavior",
+      path.join(BEHAVIOR_FIXTURE_ROOT, "contract.json"),
+      path.join(BEHAVIOR_FIXTURE_ROOT, "baseline.json"),
+      candidate,
+      "--format",
+      "json",
+    ]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("INVALID_CONFIGURATION");
+    expect(result.stderr).toContain("__proto__");
+  });
+
   it("returns 1 for blocking findings and keeps JSON stdout machine-readable", () => {
     const first = runCli(["scan", fixturePath("direct-model-literal"), "--format", "json"]);
     const second = runCli(["scan", fixturePath("direct-model-literal"), "--format", "json"]);

@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  BehaviorContractSchema,
+  BehaviorObservationSchema,
+  ConfigurationError,
   createPatchPreview,
   createPlanReport,
   loadMigrationRegistry,
@@ -11,6 +15,7 @@ import {
   type Report,
   type ScanResult,
   scanRepository,
+  verifyBehaviorContract,
   verifyPatchPlan,
 } from "@migration-doctor/core";
 import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
@@ -57,6 +62,41 @@ function scanExitCode(scan: ScanResult): number {
     return 4;
   }
   return scan.summary.blocking > 0 ? 1 : 0;
+}
+
+async function readJsonInput(inputPath: string, label: string): Promise<unknown> {
+  let raw: string;
+  try {
+    raw = await readFile(path.resolve(inputPath), "utf8");
+  } catch (error) {
+    throw new ConfigurationError(`Unable to read ${label} at ${inputPath}.`, { cause: error });
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new ConfigurationError(`${label} at ${inputPath} is not valid JSON.`, { cause: error });
+  }
+}
+
+async function readBehaviorContract(inputPath: string) {
+  const parsed = BehaviorContractSchema.safeParse(await readJsonInput(inputPath, "contract"));
+  if (!parsed.success) {
+    throw new ConfigurationError(
+      `Contract at ${inputPath} failed schema validation: ${parsed.error.message}`,
+    );
+  }
+  return parsed.data;
+}
+
+async function readBehaviorObservation(inputPath: string, label: string) {
+  const parsed = BehaviorObservationSchema.safeParse(await readJsonInput(inputPath, label));
+  if (!parsed.success) {
+    throw new ConfigurationError(
+      `${label[0]?.toUpperCase()}${label.slice(1)} at ${inputPath} failed schema validation: ${parsed.error.message}`,
+    );
+  }
+  return parsed.data;
 }
 
 async function scanTarget(repository: string) {
@@ -174,6 +214,35 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
         return report;
       }, options.format);
     });
+
+  program
+    .command("verify-behavior")
+    .description("compare offline migration behavior fixtures without calling a live API")
+    .argument("<contract>", "behavior contract JSON path")
+    .argument("<baseline>", "baseline observation JSON path")
+    .argument("<candidate>", "candidate observation JSON path")
+    .addOption(formatOption())
+    .action(
+      async (
+        contractPath: string,
+        baselinePath: string,
+        candidatePath: string,
+        options: { format: OutputFormat },
+      ) => {
+        commandExecuted = true;
+        await runMeasured(async () => {
+          const [registry, contract, baseline, candidate] = await Promise.all([
+            loadMigrationRegistry(implementationRoot()),
+            readBehaviorContract(contractPath),
+            readBehaviorObservation(baselinePath, "baseline observation"),
+            readBehaviorObservation(candidatePath, "candidate observation"),
+          ]);
+          const report = verifyBehaviorContract({ contract, baseline, candidate, registry });
+          commandExitCode = report.passed ? 0 : 5;
+          return report;
+        }, options.format);
+      },
+    );
 
   try {
     await program.parseAsync(argv, { from: "user" });

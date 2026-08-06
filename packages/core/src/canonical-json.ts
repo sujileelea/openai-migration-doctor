@@ -18,7 +18,7 @@ function normalize(value: unknown): JsonValue {
   }
 
   if (typeof value === "object") {
-    const normalized: Record<string, JsonValue> = {};
+    const normalized = Object.create(null) as Record<string, JsonValue>;
     for (const key of Object.keys(value).sort()) {
       const child = (value as Record<string, unknown>)[key];
       if (child !== undefined) {

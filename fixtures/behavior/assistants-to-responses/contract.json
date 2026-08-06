@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "assistants-to-responses-offline-contract",
+  "scenarioId": "assistants-to-responses-offline",
+  "migrationEdgeIds": [
+    "openai.product.assistants-api.to.responses-and-conversations"
+  ],
+  "changedFiles": {
+    "allowed": ["src/agent.ts", "src/state.ts"],
+    "required": ["src/agent.ts"]
+  }
+}

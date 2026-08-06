@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "responses-broken-text-candidate",
+  "scenarioId": "assistants-to-responses-offline",
+  "textOutputs": [
+    {
+      "caseId": "support-answer",
+      "value": {
+        "text": "A different synthetic answer without citations."
+      }
+    }
+  ],
+  "conversationItems": [
+    {
+      "sequence": 1,
+      "key": "input-1",
+      "type": "message",
+      "role": "user",
+      "metadata": {
+        "text": "A synthetic support question."
+      }
+    },
+    {
+      "sequence": 2,
+      "key": "call-1",
+      "type": "tool-call",
+      "parentKey": "input-1",
+      "metadata": {
+        "name": "search_docs",
+        "arguments": {
+          "query": "refund",
+          "limit": 3
+        }
+      }
+    },
+    {
+      "sequence": 3,
+      "key": "tool-output-1",
+      "type": "tool-output",
+      "parentKey": "call-1",
+      "metadata": {
+        "status": "ok",
+        "matches": [
+          {
+            "title": "Returns"
+          }
+        ]
+      }
+    },
+    {
+      "sequence": 4,
+      "key": "output-1",
+      "type": "message",
+      "role": "assistant",
+      "parentKey": "tool-output-1",
+      "metadata": {
+        "text": "A synthetic baseline answer.",
+        "annotations": []
+      }
+    }
+  ],
+  "streamEvents": [
+    {
+      "sequence": 1,
+      "type": "generation.started",
+      "itemKey": "generation-1",
+      "payload": {
+        "status": "queued"
+      }
+    },
+    {
+      "sequence": 2,
+      "type": "message.added",
+      "itemKey": "message-1",
+      "payload": {
+        "itemType": "message",
+        "role": "assistant"
+      }
+    },
+    {
+      "sequence": 3,
+      "type": "text.delta",
+      "itemKey": "message-1",
+      "payload": {
+        "delta": "A different synthetic answer."
+      }
+    },
+    {
+      "sequence": 4,
+      "type": "generation.completed",
+      "itemKey": "generation-1",
+      "payload": {
+        "status": "done",
+        "usage": {
+          "inputTokens": 8,
+          "outputTokens": 9
+        }
+      }
+    }
+  ],
+  "toolCalls": [
+    {
+      "sequence": 1,
+      "name": "search_docs",
+      "arguments": {
+        "query": "refund",
+        "limit": 3
+      }
+    }
+  ],
+  "retryAttempts": [
+    {
+      "sequence": 1,
+      "operation": "support-response",
+      "attempt": 1,
+      "outcome": "error",
+      "errorCode": "rate_limit_exceeded",
+      "retryable": true
+    },
+    {
+      "sequence": 2,
+      "operation": "support-response",
+      "attempt": 2,
+      "outcome": "success"
+    }
+  ],
+  "changedFiles": ["src/agent.ts", "src/state.ts"]
+}

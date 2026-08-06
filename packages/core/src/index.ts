@@ -1,3 +1,4 @@
+export * from "./behavior.js";
 export * from "./canonical-json.js";
 export * from "./compare.js";
 export * from "./errors.js";
