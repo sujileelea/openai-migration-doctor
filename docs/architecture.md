@@ -1,7 +1,7 @@
 # Architecture
 
-Migration Doctor currently implements one deterministic TypeScript model migration and a
-review-only Assistants API analysis slice through the same source-backed pipeline.
+Migration Doctor currently implements one deterministic TypeScript model migration, a review-only
+Assistants API analysis slice, and an offline behavioral contract verifier.
 
 ## Dependency direction
 
@@ -25,6 +25,12 @@ core + language-typescript + reporters <- cli
    the repository to a temporary directory, applies frozen edits, re-scans the copy, compares file
    hashes, and confirms the original tree hash is unchanged.
 7. Reporters serialize the same normalized result as Markdown or canonical JSON.
+
+`verifyBehaviorContract` is a separate, repository-independent path. It validates a versioned
+contract plus baseline and candidate observations, selects the referenced edges from the locked
+migration registry, and evaluates six fixed checks in stable order. It never runs either
+application, synthesizes observations, or calls an external API. The resulting report records
+`offline-fixture` evidence and `liveApiUsed: false` so it cannot be confused with runtime proof.
 
 ## Deterministic output
 
@@ -62,3 +68,18 @@ Each edit records:
 - expected and replacement text.
 
 This is sufficient to reject a stale plan and to prove that the verified file bytes equal the planned edit result. It does not prove that model output is behaviorally equivalent.
+
+## Offline behavioral observations
+
+Behavior observations normalize only the evidence needed for a contract: JSON output shapes,
+conversation items, stream events, tool calls, retry attempts, and changed paths. Text values and
+stream payload values are compared by JSON shape. Conversation identity, linkage, order, and
+normalized metadata, tool arguments, and retry attempts are compared exactly because they are part
+of application control flow. Failure evidence names the mismatched structural path or file path
+without reproducing application payload values.
+
+The contract format uses exact relative paths rather than glob expansion. Required paths must also
+be allowed. Ordered evidence uses contiguous sequence numbers, making reordering and omission
+unambiguous and keeping canonical reports independent of host locale and clock time. Conversation
+parents must reference an earlier item. Retry attempts are normalized per operation, begin at one,
+increment by one, and stop after success or an explicitly non-retryable error.

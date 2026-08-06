@@ -32,8 +32,20 @@ only to the checked-in supported synthetic labels; no public benchmark claim is 
 - `verify` uses a temporary directory copy, not a Git worktree.
 - A blocked analysis-only verification proves that no automatic transformation occurred and the
   original repository stayed unchanged; it deliberately fails `manual_migration_resolved`.
+- `verify-behavior` compares supplied JSON observations only. It does not run the source or target
+  integration, discover tests, capture SDK events, or establish that a repository emitted the
+  observations.
+- Offline text and stream payload checks compare JSON shape rather than semantic value equality.
+  Conversation identity, linkage, order, and normalized metadata, tool arguments, retry metadata,
+  and exact changed paths are compared deterministically.
+- Changed-file behavioral contracts accept exact relative POSIX paths only; glob patterns and
+  rename inference are not implemented.
+- A behavior observation represents one logical retry invocation per operation name. Representing
+  repeated independent invocations of the same operation requires separate observations; an
+  invocation ID is not yet modeled.
 - Repository build, typecheck, lint, unit tests, and integration tests are not discovered or executed.
-- No audio corpus is evaluated, so runtime behavior is always reported as unverified.
+- No audio or live application corpus is executed, so repository runtime behavior remains
+  unverified even when an offline fixture contract passes.
 - SDK version compatibility is not inferred. Post-patch repository checks will be required before that claim is possible.
 
 ## Sources and reports
@@ -45,8 +57,13 @@ only to the checked-in supported synthetic labels; no public benchmark claim is 
 - SDK constraint strings are not treated as repository evidence. Until package/version/location proofs are structured and validated, any relevant constrained edge causes an `unverified-constraint` abstention.
 - Graph diagnostics are currently emitted only for resource families evaluated by an installed language adapter; there is no repository-wide rule-independent graph audit command yet.
 - Source refresh is manual.
-- Canonical JSON and Markdown are implemented; saved report files, SARIF, HTML, and GitHub annotations are not.
+- Canonical JSON and Markdown are implemented for pipeline and offline behavior reports; saved
+  report files, SARIF, HTML, and GitHub annotations are not.
 - Runtime telemetry is written to stderr and is not part of the canonical report.
+- Phase 4 structural fields reject unknown keys and report-unsafe identifiers. Arbitrary JSON
+  payload keys remain supported except an own `__proto__` key, which is rejected at any depth
+  before schema parsing can discard it ambiguously. Own `constructor` and `prototype` keys remain
+  supported and are included in canonical input hashes.
 
 ## Distribution
 

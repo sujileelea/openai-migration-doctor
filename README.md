@@ -2,7 +2,7 @@
 
 > Deterministic detection, source-grounded planning, scoped transformation, and behavioral verification for OpenAI API migrations.
 
-**Project status:** pre-alpha. Local source builds support one deterministic TypeScript model-snapshot migration end to end and review-only Assistants API analysis. The package is not published, Assistants transformation is not implemented, and runtime behavioral parity is not yet evaluated.
+**Project status:** pre-alpha. Local source builds support one deterministic TypeScript model-snapshot migration end to end, review-only Assistants API analysis, and offline before/after behavioral contract verification. The package is not published, Assistants transformation is not implemented, and repository runtime or live-API parity is not evaluated.
 
 Migration Doctor is an **unofficial developer tool intended for open-source release** after license and provenance review. It is not an OpenAI product and is not affiliated with or endorsed by OpenAI.
 
@@ -50,11 +50,19 @@ corepack pnpm run doctor plan fixtures/typescript/direct-model-literal
 corepack pnpm run doctor migrate fixtures/typescript/direct-model-literal --risk safe
 corepack pnpm run doctor verify fixtures/typescript/direct-model-literal
 corepack pnpm run doctor scan fixtures/typescript/assistants-direct
+corepack pnpm run doctor verify-behavior \
+  fixtures/behavior/assistants-to-responses/contract.json \
+  fixtures/behavior/assistants-to-responses/baseline.json \
+  fixtures/behavior/assistants-to-responses/candidate-compatible.json
 ```
 
-Use `--format json` for canonical machine output. Execution duration and cache state are written to stderr so the JSON remains byte-stable for the same repository and source lock.
+Use `--format json` for canonical machine output. Execution duration and cache state are written to
+stderr so JSON remains byte-stable for the same command inputs and source lock.
 
-Locked source-registry artifacts remain on schema `1.0.0`. Findings and command reports use schema `3.0.0`; the versions are independent so report-contract changes do not rewrite reviewed source evidence.
+Locked source-registry artifacts and offline behavior fixtures remain on their independent schema
+`1.0.0`. Findings and command reports, including behavior reports, use schema `3.0.0`; these
+versions are independent so report-contract changes do not rewrite reviewed source evidence or
+fixture inputs.
 
 ### `scan`
 
@@ -72,14 +80,18 @@ Produces a deterministic patch preview. A blocked plan produces an empty preview
 
 For a deterministic edit, applies the preview in a temporary tree and verifies the changed-file allowlist, exact literal edit, finding removal, and source-tree immutability. For a blocked analysis-only plan, records unresolved manual work and proves that no automatic transformation occurred. It does not yet run repository-specific tests or behavioral evaluation corpora.
 
+### `verify-behavior`
+
+Compares versioned baseline and candidate observations against an offline behavioral contract. The six fixed checks cover text output shape, normalized conversation state, streaming sequence, tool call sequence and arguments, error and retry behavior, and changed-file allowlists. It reads JSON fixtures only, performs no repository execution or network call, and reports that limited evidence scope explicitly.
+
 ### Exit codes
 
-- `0`: no blocking finding, or deterministic verification passed;
+- `0`: no blocking finding, deterministic verification passed, or an offline behavioral contract passed;
 - `1`: command completed and blocking migration findings remain;
 - `2`: invalid invocation or configuration;
 - `3`: analysis was incomplete;
 - `4`: `migration.lock` or a locked artifact is missing or invalid, or the relevant graph is conflicted or cyclic;
-- `5`: patch planning or verification failed.
+- `5`: patch planning, deterministic verification, or behavioral contract verification failed.
 
 ## Current rule coverage
 
@@ -142,16 +154,20 @@ No tier may auto-merge or bypass repository tests.
 
 ### 4. Behavioral verification
 
-Compilation is necessary but insufficient. The current verifier proves the patch mechanics only. Future behavioral verification can include:
+Compilation is necessary but insufficient. Deterministic patch verification proves patch mechanics. The offline behavioral verifier separately compares declared before/after observations for:
 
 - structured-output compatibility;
 - tool name, argument, and sequence checks;
 - conversation-state preservation;
 - streaming-event ordering;
-- error, retry, and timeout behavior;
-- token, latency, and cost comparison;
-- repository unit and integration tests;
-- changed-file allowlists and unrelated-diff checks.
+- error and retry behavior;
+- changed-file allowlists.
+
+The offline fixture result is not evidence that a repository produced those observations. Repository test discovery, runtime instrumentation, live API smoke tests, timeout behavior, and token, latency, and cost comparison remain future work.
+
+Text output values and stream payload values are compared by JSON shape. Conversation identity,
+linkage, order, and normalized metadata, tool calls and arguments, and retry attempts are compared
+exactly. Reports contain mismatch paths and input hashes, not primitive output or stream values.
 
 > Codex proposes. Tests decide.
 
@@ -163,7 +179,7 @@ Compilation is necessary but insufficient. The current verifier proves the patch
 | JavaScript | Planned |
 | Python | Analyze, transform, and verify |
 | Deprecated model IDs | Deterministic migration when compatibility is established |
-| Assistants to Responses + Conversations | Feature-level analysis implemented; transformation and behavioral contracts planned |
+| Assistants to Responses + Conversations | Feature-level analysis and offline behavioral contracts implemented; transformation planned |
 | Streaming and function calling | Assistants-bound detection implemented; transformation planned |
 | Reusable prompt objects | Migration to application-managed configuration |
 | File search and code interpreter | Assistants-bound literal detection implemented; transform only with proven contracts |
@@ -260,7 +276,12 @@ The benchmark suite will treat performance regressions as release blockers.
 
 ## Evaluation
 
-The current deterministic suite contains 12 TypeScript fixture classes, five checked-in synthetic graph fixtures, and 73 automated tests. It covers schema invariants, byte-exact source locks, graph traversal and conflicts, constrained-path abstention, model and Assistants analysis, symbol identity and alias boundaries, stable unsupported-pattern routing, stale plans, locale-independent canonical reports, atomic abstention, patch preview, temporary-tree verification, and CLI exit codes.
+The current deterministic suite contains 12 TypeScript fixture classes, five checked-in synthetic
+graph fixtures, nine offline behavior fixtures, and 95 automated tests. It covers schema
+invariants, byte-exact source locks, graph traversal and conflicts, constrained-path abstention,
+model and Assistants analysis, symbol identity and alias boundaries, stable unsupported-pattern
+routing, stale plans, locale-independent canonical reports, atomic abstention, patch preview,
+temporary-tree verification, isolated behavioral regressions, report redaction, and CLI exit codes.
 
 On the authored Phase 3 corpus, supported detection measures 19 true positives, 0 false positives, and 0 false negatives: 100% precision and 100% recall. All 13 labeled high-signal abstentions route exactly, and a separate 34-call method matrix produces the expected 58 atomic feature findings. These are synthetic implementation results, not a public benchmark or a claim about arbitrary repositories.
 
@@ -287,7 +308,8 @@ Implemented now:
 - source-backed patch plans;
 - source-backed manual migration actions;
 - patch previews;
-- deterministic verification ledgers.
+- deterministic verification ledgers;
+- offline behavioral contract reports with canonical input hashes and path-only mismatch evidence.
 
 Planned after the core stabilizes:
 
@@ -312,6 +334,7 @@ migration-doctor/
 │   ├── sources/
 │   └── migrations/
 ├── fixtures/
+│   ├── behavior/
 │   ├── graph/
 │   └── typescript/
 ├── docs/
@@ -333,8 +356,8 @@ The project is quality-gated rather than date-gated:
 1. **Done:** establish schemas, source provenance, and a TypeScript vertical slice.
 2. **Done:** prove graph traversal, destination-deprecation checks, conflict records, and Tier C abstention.
 3. **Done:** add Assistants analysis and useful unsupported-pattern abstention without transformation.
-4. **Current:** define repository and offline application behavioral contracts.
-5. Add isolated Codex remediation only after those contracts fail against deliberately broken migrations.
+4. **Done:** define offline application behavioral contracts and prove precise failures against deliberately broken observations.
+5. **Current:** add isolated Codex remediation that is constrained by the frozen plan and the same contracts.
 6. Publish the benchmark and performance ledger.
 7. Add Python through the same language-adapter contract.
 8. Package the validated workflow as a Codex skill, then as a plugin if broader distribution is justified.

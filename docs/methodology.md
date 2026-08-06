@@ -146,10 +146,41 @@ The automated suite also covers locked-artifact tampering, parser failure, stale
 
 Five `example.invalid` graph fixtures exercise a deprecated intermediate destination, conflicting destinations, a cycle, missing guidance, and an SDK constraint without structured repository evidence. They are explicitly synthetic and make no claim about an OpenAI product. Conflict integration tests require a Tier C finding, preserve both source records, and prove that no patch is planned.
 
+## Offline behavioral contracts
+
+Phase 4 uses a checked-in Assistants-to-Responses fixture family rather than a live API. A
+versioned contract identifies the locked product migration edge and declares exact allowed and
+required changed paths. Baseline and candidate observations share a scenario ID and record six
+normalized evidence families:
+
+1. text output JSON shape;
+2. exact normalized conversation item identity, linkage, metadata, and order;
+3. streaming event type, item linkage, payload shape, and order;
+4. tool name, call order, and exact JSON arguments;
+5. one logical invocation per operation, with attempt number, outcome, error code, retryability,
+   and order;
+6. candidate changed paths against the allowlist and required set.
+
+Event types, item keys, and retry operation keys use product-neutral semantic labels. The baseline
+therefore represents normalized Assistants behavior rather than pretending that it emitted raw
+Responses events.
+
+The compatible candidate changes synthetic primitive output values while preserving their shapes,
+which prevents fixture equality from masquerading as a behavioral contract. Six negative
+candidates each break one evidence family. Tests require exactly the named check to fail while the
+other five pass, and require evidence to identify a structural path or changed path. Reports hash
+the canonical contract and both observations, select their migration edges from the validated
+source lock, exclude volatile timing, and state `offline-fixture` and `liveApiUsed: false`.
+
+This method proves that the comparator detects declared fixture regressions. It does not prove that
+the fixture represents an arbitrary application, that either integration produced the observation,
+or that model meaning, latency, token use, or cost was preserved.
+
 ## Claims boundary
 
 Passing deterministic edit verification means the patch mechanics satisfy the declared contracts.
 An Assistants analysis-only verification intentionally does not pass while manual actions remain.
-Neither result means transcription quality, conversation state, streaming order, tool behavior,
-latency, token use, cost, or application behavior has been preserved. Those claims require
-representative behavioral fixtures and repository-specific checks.
+Passing offline behavioral verification means only that the supplied normalized observations
+satisfy the checked-in contract. None of these results alone proves transcription quality,
+repository runtime behavior, latency, token use, or cost. Those claims require representative
+application instrumentation and repository-specific checks.
