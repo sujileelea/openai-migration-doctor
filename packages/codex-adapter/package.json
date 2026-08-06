@@ -1,0 +1,19 @@
+{
+  "name": "@migration-doctor/codex-adapter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@migration-doctor/core": "workspace:*",
+    "@migration-doctor/language-typescript": "workspace:*",
+    "zod": "4.1.5"
+  }
+}

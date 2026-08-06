@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.2",
+    "@migration-doctor/codex-adapter": "workspace:*",
     "@migration-doctor/core": "workspace:*",
     "@migration-doctor/language-typescript": "workspace:*",
     "@migration-doctor/reporters": "workspace:*",

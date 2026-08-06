@@ -11,6 +11,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.2.2
         version: 2.2.2
+      '@migration-doctor/codex-adapter':
+        specifier: workspace:*
+        version: link:packages/codex-adapter
       '@migration-doctor/core':
         specifier: workspace:*
         version: link:packages/core
@@ -44,6 +47,18 @@ importers:
       commander:
         specifier: 14.0.0
         version: 14.0.0
+
+  packages/codex-adapter:
+    dependencies:
+      '@migration-doctor/core':
+        specifier: workspace:*
+        version: link:../core
+      '@migration-doctor/language-typescript':
+        specifier: workspace:*
+        version: link:../language-typescript
+      zod:
+        specifier: 4.1.5
+        version: 4.1.5
 
   packages/core:
     dependencies:
