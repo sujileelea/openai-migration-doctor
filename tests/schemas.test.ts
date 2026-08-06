@@ -2,6 +2,7 @@ import {
   createPlanReport,
   FindingSchema,
   loadMigrationRegistry,
+  ManualActionSchema,
   PatchPlanSchema,
   REPORT_SCHEMA_VERSION,
   ScanResultSchema,
@@ -23,12 +24,86 @@ beforeAll(async () => {
 });
 
 describe("serialized schema invariants", () => {
-  it("uses the version 2 report contract independently of registry schema version 1", () => {
-    expect(REPORT_SCHEMA_VERSION).toBe("2.0.0");
+  it("uses the version 3 report contract independently of registry schema version 1", () => {
+    expect(REPORT_SCHEMA_VERSION).toBe("3.0.0");
     expect(validScan.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
     expect(ScanResultSchema.safeParse({ ...validScan, schemaVersion: "1.0.0" }).success).toBe(
       false,
     );
+  });
+
+  it("requires a structured analysis classification on every finding", () => {
+    const finding = validScan.findings[0];
+    expect(finding).toBeDefined();
+    if (!finding) {
+      return;
+    }
+
+    const { analysis: _analysis, ...withoutAnalysis } = finding;
+    expect(FindingSchema.safeParse(withoutAnalysis).success).toBe(false);
+    expect(finding.analysis).toEqual({
+      family: "model-snapshot",
+      feature: "model-snapshot",
+      pattern: "direct",
+      disposition: "supported",
+    });
+  });
+
+  it("accepts supported analysis-only findings without a remediation", () => {
+    const finding = validScan.findings[0];
+    expect(finding).toBeDefined();
+
+    expect(
+      FindingSchema.safeParse({
+        ...finding,
+        kind: "analysis-only",
+        automationTier: "C",
+        reviewRequired: true,
+        analysis: {
+          family: "assistants-api",
+          feature: "runs",
+          pattern: "direct",
+          disposition: "supported",
+          reasonCode: "manual-migration-required",
+        },
+        abstentionReason: "Run orchestration requires a manual migration.",
+        remediation: { kind: "none" },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires unsupported patterns to abstain with a stable reason code", () => {
+    const finding = validScan.findings[0];
+    expect(finding).toBeDefined();
+    const unsupported = {
+      ...finding,
+      kind: "unsupported-pattern",
+      automationTier: "C",
+      reviewRequired: true,
+      analysis: {
+        family: "assistants-api",
+        feature: "runs",
+        pattern: "dynamic-member",
+        disposition: "abstained",
+        reasonCode: "computed-member-access",
+      },
+      abstentionReason: "Computed SDK members cannot be classified safely.",
+      remediation: { kind: "none" },
+    };
+
+    expect(FindingSchema.safeParse(unsupported).success).toBe(true);
+    expect(
+      FindingSchema.safeParse({
+        ...unsupported,
+        analysis: { ...unsupported.analysis, reasonCode: undefined },
+      }).success,
+    ).toBe(false);
+    expect(
+      FindingSchema.safeParse({
+        ...unsupported,
+        analysis: { ...unsupported.analysis, disposition: "supported" },
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects a source-conflict finding that proposes a deterministic replacement", () => {
@@ -94,6 +169,26 @@ describe("serialized schema invariants", () => {
         ...ready,
         status: "blocked",
         abstentionReasons: [`${finding.id}: synthetic abstention`],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires every manual action to have a stable reason code", () => {
+    const finding = validScan.findings[0];
+    const edge = validScan.migrationEdges[0];
+    expect(finding).toBeDefined();
+    expect(edge).toBeDefined();
+    if (!finding || !edge) {
+      return;
+    }
+
+    expect(
+      ManualActionSchema.safeParse({
+        findingId: finding.id,
+        migrationEdgeIds: [edge.id],
+        target: edge.to,
+        reason: "Manual migration is required.",
+        behaviorChanges: edge.behaviorChanges,
       }).success,
     ).toBe(false);
   });

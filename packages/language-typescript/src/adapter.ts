@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import {
   type AdapterScanResult,
   AnalysisError,
@@ -13,98 +12,19 @@ import {
   sha256,
 } from "@migration-doctor/core";
 import ts from "typescript";
+import { ASSISTANTS_RESOURCE, scanAssistantsSource } from "./assistants.js";
+import {
+  type BoundSource,
+  collectOpenAiClients,
+  collectOpenAiConstructors,
+  collectOpenAiTypeSymbols,
+  createBoundSource,
+  propertyChain,
+} from "./bindings.js";
 
 const SOURCE_MODEL = "gpt-4o-mini-transcribe-2025-03-20";
 const RULE_ID = "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20";
 const TYPESCRIPT_EXTENSIONS = [".cts", ".mts", ".ts", ".tsx"] as const;
-
-function scriptKindFor(file: string): ts.ScriptKind {
-  return path.extname(file) === ".tsx" ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-}
-
-function collectOpenAiConstructors(
-  sourceFile: ts.SourceFile,
-  checker: ts.TypeChecker,
-): Set<ts.Symbol> {
-  const constructors = new Set<ts.Symbol>();
-  for (const statement of sourceFile.statements) {
-    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
-      continue;
-    }
-    if (statement.moduleSpecifier.text !== "openai" || !statement.importClause) {
-      continue;
-    }
-
-    if (statement.importClause.name) {
-      const symbol = checker.getSymbolAtLocation(statement.importClause.name);
-      if (symbol) {
-        constructors.add(symbol);
-      }
-    }
-
-    const bindings = statement.importClause.namedBindings;
-    if (bindings && ts.isNamedImports(bindings)) {
-      for (const element of bindings.elements) {
-        const importedName = element.propertyName?.text ?? element.name.text;
-        if (importedName === "OpenAI") {
-          const symbol = checker.getSymbolAtLocation(element.name);
-          if (symbol) {
-            constructors.add(symbol);
-          }
-        }
-      }
-    }
-  }
-  return constructors;
-}
-
-function collectOpenAiClients(
-  sourceFile: ts.SourceFile,
-  checker: ts.TypeChecker,
-  constructors: Set<ts.Symbol>,
-): Map<ts.Symbol, number> {
-  const clients = new Map<ts.Symbol, number>();
-
-  function visit(node: ts.Node): void {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      ts.isVariableDeclarationList(node.parent) &&
-      (node.parent.flags & ts.NodeFlags.Const) !== 0 &&
-      node.initializer &&
-      ts.isNewExpression(node.initializer) &&
-      ts.isIdentifier(node.initializer.expression) &&
-      constructors.has(checker.getSymbolAtLocation(node.initializer.expression) as ts.Symbol)
-    ) {
-      const symbol = checker.getSymbolAtLocation(node.name);
-      if (symbol) {
-        clients.set(symbol, node.getEnd());
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-
-  visit(sourceFile);
-  return clients;
-}
-
-type PropertyChain = {
-  root: ts.Identifier;
-  segments: string[];
-};
-
-function propertyChain(expression: ts.Expression): PropertyChain | null {
-  if (ts.isIdentifier(expression)) {
-    return { root: expression, segments: [expression.text] };
-  }
-  if (!ts.isPropertyAccessExpression(expression)) {
-    return null;
-  }
-  const prefix = propertyChain(expression.expression);
-  return prefix
-    ? { root: prefix.root, segments: [...prefix.segments, expression.name.text] }
-    : null;
-}
 
 function findModelLiteral(call: ts.CallExpression): ts.StringLiteral | null {
   const request = call.arguments[0];
@@ -146,54 +66,12 @@ function parseDiagnosticMessage(diagnostic: ts.Diagnostic): string {
   return ts.flattenDiagnosticMessageText(diagnostic.messageText, " ");
 }
 
-function createBoundSource(relativeFile: string, content: string) {
-  const fileName = path.resolve("/migration-doctor-input", relativeFile);
-  const options: ts.CompilerOptions = {
-    module: ts.ModuleKind.NodeNext,
-    moduleResolution: ts.ModuleResolutionKind.NodeNext,
-    noEmit: true,
-    noLib: true,
-    noResolve: true,
-    target: ts.ScriptTarget.ES2023,
-  };
-  const sourceFile = ts.createSourceFile(
-    fileName,
-    content,
-    ts.ScriptTarget.Latest,
-    true,
-    scriptKindFor(relativeFile),
-  );
-  const canonicalFileName = (value: string) =>
-    ts.sys.useCaseSensitiveFileNames ? value : value.toLowerCase();
-  const host: ts.CompilerHost = {
-    fileExists: (requested) => canonicalFileName(requested) === canonicalFileName(fileName),
-    getCanonicalFileName: canonicalFileName,
-    getCurrentDirectory: () => path.dirname(fileName),
-    getDefaultLibFileName: () => "",
-    getDirectories: () => [],
-    getNewLine: () => "\n",
-    getSourceFile: (requested) =>
-      canonicalFileName(requested) === canonicalFileName(fileName) ? sourceFile : undefined,
-    readFile: (requested) =>
-      canonicalFileName(requested) === canonicalFileName(fileName) ? content : undefined,
-    useCaseSensitiveFileNames: () => ts.sys.useCaseSensitiveFileNames,
-    writeFile: () => undefined,
-  };
-  const program = ts.createProgram([fileName], options, host);
-  const boundSource = program.getSourceFile(fileName) ?? sourceFile;
-  return {
-    sourceFile: boundSource,
-    checker: program.getTypeChecker(),
-    diagnostics: program.getSyntacticDiagnostics(boundSource),
-  };
-}
-
 function scanSource(
   relativeFile: string,
   content: string,
   resolution: Exclude<MigrationResolution, { status: "unmapped" }>,
+  bound: BoundSource = createBoundSource(relativeFile, content),
 ): Finding[] {
-  const bound = createBoundSource(relativeFile, content);
   const parseErrors = bound.diagnostics.filter(
     (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
   );
@@ -240,12 +118,12 @@ function scanSource(
     if (ts.isCallExpression(node)) {
       const chain = propertyChain(node.expression);
       const rootSymbol = chain ? checker.getSymbolAtLocation(chain.root) : undefined;
-      const constructedAt = rootSymbol ? clients.get(rootSymbol) : undefined;
+      const client = rootSymbol ? clients.get(rootSymbol) : undefined;
       if (
         chain &&
         chain.segments.length === 4 &&
-        constructedAt !== undefined &&
-        node.getStart(sourceFile) > constructedAt &&
+        client !== undefined &&
+        node.getStart(sourceFile) > client.constructedAt &&
         chain.segments[1] === "audio" &&
         chain.segments[2] === "transcriptions" &&
         chain.segments[3] === "create"
@@ -286,6 +164,12 @@ function scanSource(
             automationTier,
             reviewRequired:
               resolution.reviewRequired || !deterministicModelReplacement || automationTier !== "A",
+            analysis: {
+              family: "model-snapshot",
+              feature: "model-snapshot",
+              pattern: "direct",
+              disposition: "supported",
+            },
             ...(abstentionReason ? { abstentionReason } : {}),
             remediation: deterministicModelReplacement
               ? {
@@ -309,14 +193,16 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
   readonly extensions = TYPESCRIPT_EXTENSIONS;
 
   async scan(request: Parameters<LanguageAdapter["scan"]>[0]): Promise<AdapterScanResult> {
-    const resolution = resolveMigrationPath(
+    const modelResolution = resolveMigrationPath(
       request.migrationEdges,
       { kind: "model", id: SOURCE_MODEL },
       "typescript",
     );
-    if (resolution.status === "unmapped") {
-      throw new AnalysisError(`No locked TypeScript migration edge exists for ${SOURCE_MODEL}.`);
-    }
+    const assistantsResolution = resolveMigrationPath(
+      request.migrationEdges,
+      ASSISTANTS_RESOURCE,
+      "typescript",
+    );
 
     const extensions = new Set<string>(this.extensions);
     let files: string[];
@@ -325,7 +211,7 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
     } catch (error) {
       throw new AnalysisError("Unable to enumerate candidate TypeScript files.", { cause: error });
     }
-    const findings = await Promise.all(
+    const findingGroups = await Promise.all(
       files.map(async (relativeFile) => {
         let content: string;
         try {
@@ -338,16 +224,71 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
             cause: error,
           });
         }
-        if (!content.includes(SOURCE_MODEL)) {
+        const hasModelCandidate = content.includes(SOURCE_MODEL);
+        const hasAssistantsCandidate =
+          content.includes("openai") &&
+          content.includes("beta") &&
+          (content.includes("assistants") || content.includes("threads"));
+        if (!hasModelCandidate && !hasAssistantsCandidate) {
           return [];
         }
-        return scanSource(relativeFile, content, resolution);
+        const bound = createBoundSource(relativeFile, content);
+        const parseErrors = bound.diagnostics.filter(
+          (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+        );
+        if (parseErrors.length > 0) {
+          const message = parseErrors.map(parseDiagnosticMessage).join("; ");
+          throw new AnalysisError(`Unable to parse ${relativeFile}: ${message}`);
+        }
+
+        const constructors = collectOpenAiConstructors(bound.sourceFile, bound.checker);
+        const openAiTypes = collectOpenAiTypeSymbols(bound.sourceFile, bound.checker);
+        const clients = collectOpenAiClients(bound.sourceFile, bound.checker, constructors);
+        const findings: Finding[] = [];
+        if (hasModelCandidate) {
+          if (modelResolution.status === "unmapped") {
+            throw new AnalysisError(
+              `No locked TypeScript migration edge exists for ${SOURCE_MODEL}.`,
+            );
+          }
+          findings.push(...scanSource(relativeFile, content, modelResolution, bound));
+        }
+        if (hasAssistantsCandidate && (clients.size > 0 || openAiTypes.size > 0)) {
+          const assistants = scanAssistantsSource(
+            relativeFile,
+            content,
+            bound.sourceFile,
+            bound.checker,
+            clients,
+            openAiTypes,
+            assistantsResolution.status === "unmapped" ? undefined : assistantsResolution,
+          );
+          if (assistants.matched && assistantsResolution.status === "unmapped") {
+            throw new AnalysisError(
+              "No locked TypeScript migration edge exists for the Assistants API.",
+            );
+          }
+          findings.push(...assistants.findings);
+        }
+        return findings;
       }),
     );
-    const normalizedFindings = findings.flat();
+    const normalizedFindings = findingGroups.flat();
+    const hasModelFindings = normalizedFindings.some(
+      (finding) => finding.analysis.family === "model-snapshot",
+    );
+    const hasAssistantsFindings = normalizedFindings.some(
+      (finding) => finding.analysis.family === "assistants-api",
+    );
+    const graphIssues = [
+      ...(hasModelFindings && modelResolution.status === "blocked" ? [modelResolution.issue] : []),
+      ...(hasAssistantsFindings && assistantsResolution.status === "blocked"
+        ? [assistantsResolution.issue]
+        : []),
+    ];
     return {
       findings: normalizedFindings,
-      graphIssues: normalizedFindings.length > 0 && resolution.issue ? [resolution.issue] : [],
+      graphIssues,
     };
   }
 }

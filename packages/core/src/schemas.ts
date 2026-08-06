@@ -1,12 +1,51 @@
 import { z } from "zod";
 
 export const SOURCE_SCHEMA_VERSION = "1.0.0" as const;
-export const REPORT_SCHEMA_VERSION = "2.0.0" as const;
+export const REPORT_SCHEMA_VERSION = "3.0.0" as const;
+
+export const DETERMINISTIC_VERIFICATION_CONTRACTS = [
+  "changed_files_allowlist",
+  "finding_resolved",
+  "literal_replacement_only",
+  "original_repository_unchanged",
+] as const;
+
+export const ANALYSIS_ONLY_VERIFICATION_CONTRACTS = [
+  "manual_migration_resolved",
+  "no_automatic_transformation",
+  "original_repository_unchanged",
+] as const;
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
 const IsoTimestampSchema = z.string().datetime({ offset: true });
 export const MigrationLanguageSchema = z.enum(["typescript", "python"]);
+export const AnalysisFamilySchema = z.enum(["model-snapshot", "assistants-api"]);
+export const AnalysisFeatureSchema = z.enum([
+  "model-snapshot",
+  "assistants",
+  "threads",
+  "runs",
+  "streaming",
+  "tools",
+  "file-search",
+  "code-interpreter",
+]);
+export const AnalysisPatternSchema = z.enum([
+  "direct",
+  "import-alias",
+  "property-alias",
+  "client-alias",
+  "wrapper",
+  "method-alias",
+  "dynamic-member",
+  "dynamic-request",
+  "indirect-invocation",
+]);
+export const AnalysisDispositionSchema = z.enum(["supported", "abstained"]);
+const StableReasonCodeSchema = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u, "Expected a stable kebab-case reason code.");
 const RelativePathSchema = z
   .string()
   .min(1)
@@ -95,11 +134,25 @@ export const SourceLockSchema = z.object({
     .min(1),
 });
 
+export const AnalysisClassificationSchema = z.object({
+  family: AnalysisFamilySchema,
+  feature: AnalysisFeatureSchema,
+  pattern: AnalysisPatternSchema,
+  disposition: AnalysisDispositionSchema,
+  reasonCode: StableReasonCodeSchema.optional(),
+});
+
 export const FindingSchema = z
   .object({
     schemaVersion: z.literal(REPORT_SCHEMA_VERSION),
     id: Sha256Schema,
-    kind: z.enum(["deprecated-usage", "source-conflict", "migration-blocked"]),
+    kind: z.enum([
+      "deprecated-usage",
+      "source-conflict",
+      "migration-blocked",
+      "analysis-only",
+      "unsupported-pattern",
+    ]),
     language: MigrationLanguageSchema,
     resource: ResourceRefSchema,
     ruleId: z.string().min(1),
@@ -118,6 +171,7 @@ export const FindingSchema = z
     confidence: z.enum(["low", "medium", "high"]),
     automationTier: z.enum(["A", "B", "C"]),
     reviewRequired: z.boolean(),
+    analysis: AnalysisClassificationSchema,
     abstentionReason: z.string().min(1).optional(),
     remediation: z.discriminatedUnion("kind", [
       z.object({
@@ -128,6 +182,13 @@ export const FindingSchema = z
     ]),
   })
   .superRefine((finding, context) => {
+    if (finding.location.endOffset <= finding.location.startOffset) {
+      context.addIssue({
+        code: "custom",
+        message: "Finding end offset must be greater than its start offset.",
+        path: ["location", "endOffset"],
+      });
+    }
     if (new Set(finding.migrationEdgeIds).size !== finding.migrationEdgeIds.length) {
       context.addIssue({
         code: "custom",
@@ -151,11 +212,12 @@ export const FindingSchema = z
     }
     if (
       finding.kind === "deprecated-usage" &&
+      finding.automationTier === "A" &&
       finding.remediation.kind !== "replace-string-literal"
     ) {
       context.addIssue({
         code: "custom",
-        message: "A deterministic deprecated-usage finding requires a replacement.",
+        message: "A Tier A deprecated-usage finding requires a replacement.",
         path: ["remediation"],
       });
     }
@@ -177,6 +239,35 @@ export const FindingSchema = z
       });
     }
     if (
+      finding.kind === "analysis-only" &&
+      (finding.automationTier !== "C" ||
+        !finding.reviewRequired ||
+        finding.analysis.disposition !== "supported" ||
+        finding.remediation.kind !== "none")
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "An analysis-only finding must be a supported Tier C detection with human review and no remediation.",
+        path: ["kind"],
+      });
+    }
+    if (
+      finding.kind === "unsupported-pattern" &&
+      (finding.automationTier !== "C" ||
+        !finding.reviewRequired ||
+        finding.analysis.disposition !== "abstained" ||
+        !finding.analysis.reasonCode ||
+        finding.remediation.kind !== "none")
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "An unsupported-pattern finding must abstain at Tier C with a stable reason code, human review, and no remediation.",
+        path: ["kind"],
+      });
+    }
+    if (
       finding.kind === "source-conflict" &&
       (finding.automationTier !== "C" ||
         !finding.reviewRequired ||
@@ -187,6 +278,32 @@ export const FindingSchema = z
         code: "custom",
         message: "A source conflict must abstain at Tier C with a graph issue and human review.",
         path: ["kind"],
+      });
+    }
+  });
+
+export const ManualActionSchema = z
+  .object({
+    findingId: Sha256Schema,
+    migrationEdgeIds: z.array(z.string().min(1)).min(1),
+    target: ResourceRefSchema.nullable(),
+    reason: z.string().min(1),
+    reasonCode: StableReasonCodeSchema,
+    behaviorChanges: z.array(z.string().min(1)),
+  })
+  .superRefine((action, context) => {
+    if (new Set(action.migrationEdgeIds).size !== action.migrationEdgeIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Manual action migration edge IDs must be unique.",
+        path: ["migrationEdgeIds"],
+      });
+    }
+    if (new Set(action.behaviorChanges).size !== action.behaviorChanges.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Manual action behavior changes must be unique.",
+        path: ["behaviorChanges"],
       });
     }
   });
@@ -215,11 +332,16 @@ export const PatchPlanSchema = z
     verificationContracts: z.array(z.string().min(1)),
     requiresCodex: z.boolean(),
     abstentionReasons: z.array(z.string().min(1)),
+    manualActions: z.array(ManualActionSchema),
     edits: z.array(TextEditSchema),
   })
   .superRefine((plan, context) => {
     const expectedStatus =
-      plan.abstentionReasons.length > 0 ? "blocked" : plan.edits.length > 0 ? "ready" : "no-op";
+      plan.abstentionReasons.length > 0 || plan.manualActions.length > 0
+        ? "blocked"
+        : plan.edits.length > 0
+          ? "ready"
+          : "no-op";
     if (plan.status !== expectedStatus) {
       context.addIssue({
         code: "custom",
@@ -232,6 +354,40 @@ export const PatchPlanSchema = z
         code: "custom",
         message: "A blocked patch plan cannot contain partial edits.",
         path: ["edits"],
+      });
+    }
+    if (
+      new Set(plan.manualActions.map((action) => action.findingId)).size !==
+      plan.manualActions.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "A patch plan can contain at most one manual action per finding.",
+        path: ["manualActions"],
+      });
+    }
+    const expectedContracts =
+      plan.status === "blocked"
+        ? ANALYSIS_ONLY_VERIFICATION_CONTRACTS
+        : DETERMINISTIC_VERIFICATION_CONTRACTS;
+    if (
+      plan.verificationContracts.length !== expectedContracts.length ||
+      !plan.verificationContracts.every((contract, index) => contract === expectedContracts[index])
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          plan.status === "blocked"
+            ? "A blocked patch plan must use only analysis verification contracts."
+            : "A ready or no-op patch plan must use deterministic edit verification contracts.",
+        path: ["verificationContracts"],
+      });
+    }
+    if (plan.status === "blocked" && plan.requiresCodex) {
+      context.addIssue({
+        code: "custom",
+        message: "A blocked analysis plan cannot require Codex.",
+        path: ["requiresCodex"],
       });
     }
   });
@@ -316,32 +472,62 @@ export const VerificationCheckSchema = z.object({
   evidence: z.array(z.string()),
 });
 
-export const VerificationResultSchema = z.object({
-  passed: z.boolean(),
-  runtimeBehaviorVerified: z.boolean(),
-  checks: z.array(VerificationCheckSchema),
-  changedFiles: z.array(RelativePathSchema),
-});
+export const VerificationResultSchema = z
+  .object({
+    passed: z.boolean(),
+    runtimeBehaviorVerified: z.boolean(),
+    checks: z.array(VerificationCheckSchema),
+    changedFiles: z.array(RelativePathSchema),
+  })
+  .superRefine((verification, context) => {
+    if (verification.passed !== verification.checks.every((check) => check.passed)) {
+      context.addIssue({
+        code: "custom",
+        message: "Verification status must match its check results.",
+        path: ["passed"],
+      });
+    }
+  });
 
-export const VerifyReportSchema = z.object({
-  schemaVersion: z.literal(REPORT_SCHEMA_VERSION),
-  kind: z.literal("verify"),
-  sourceLockHash: Sha256Schema,
-  migrationEdges: z.array(MigrationEdgeSchema),
-  graphIssues: z.array(MigrationGraphIssueSchema),
-  findings: z.array(FindingSchema),
-  plan: PatchPlanSchema,
-  verification: VerificationResultSchema,
-});
+export const VerifyReportSchema = z
+  .object({
+    schemaVersion: z.literal(REPORT_SCHEMA_VERSION),
+    kind: z.literal("verify"),
+    sourceLockHash: Sha256Schema,
+    migrationEdges: z.array(MigrationEdgeSchema),
+    graphIssues: z.array(MigrationGraphIssueSchema),
+    findings: z.array(FindingSchema),
+    plan: PatchPlanSchema,
+    verification: VerificationResultSchema,
+  })
+  .superRefine((report, context) => {
+    const checkIds = report.verification.checks.map((check) => check.id);
+    if (
+      checkIds.length !== report.plan.verificationContracts.length ||
+      !checkIds.every((id, index) => id === report.plan.verificationContracts[index])
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Verification checks must match the patch plan contracts in order.",
+        path: ["verification", "checks"],
+      });
+    }
+  });
 
 export type ResourceRef = z.infer<typeof ResourceRefSchema>;
 export type SourceRef = z.infer<typeof SourceRefSchema>;
 export type SourceRecord = z.infer<typeof SourceRecordSchema>;
 export type MigrationEdge = z.infer<typeof MigrationEdgeSchema>;
 export type MigrationLanguage = z.infer<typeof MigrationLanguageSchema>;
+export type AnalysisFamily = z.infer<typeof AnalysisFamilySchema>;
+export type AnalysisFeature = z.infer<typeof AnalysisFeatureSchema>;
+export type AnalysisPattern = z.infer<typeof AnalysisPatternSchema>;
+export type AnalysisDisposition = z.infer<typeof AnalysisDispositionSchema>;
+export type AnalysisClassification = z.infer<typeof AnalysisClassificationSchema>;
 export type MigrationGraphIssue = z.infer<typeof MigrationGraphIssueSchema>;
 export type SourceLock = z.infer<typeof SourceLockSchema>;
 export type Finding = z.infer<typeof FindingSchema>;
+export type ManualAction = z.infer<typeof ManualActionSchema>;
 export type TextEdit = z.infer<typeof TextEditSchema>;
 export type PatchPlan = z.infer<typeof PatchPlanSchema>;
 export type ScanResult = z.infer<typeof ScanResultSchema>;

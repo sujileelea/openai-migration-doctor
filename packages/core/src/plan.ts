@@ -4,6 +4,9 @@ import { SourceLockError } from "./errors.js";
 import { resolveMigrationPath } from "./graph.js";
 import { sha256 } from "./hash.js";
 import {
+  ANALYSIS_ONLY_VERIFICATION_CONTRACTS,
+  DETERMINISTIC_VERIFICATION_CONTRACTS,
+  type ManualAction,
   type PatchPlan,
   PatchPlanSchema,
   type PlanReport,
@@ -22,6 +25,10 @@ function compareEdits(left: TextEdit, right: TextEdit): number {
   );
 }
 
+function compareManualActions(left: ManualAction, right: ManualAction): number {
+  return compareStrings(left.findingId, right.findingId);
+}
+
 export function createPatchPlan(scan: ScanResult): PatchPlan {
   const edgeById = new Map(scan.migrationEdges.map((edge) => [edge.id, edge]));
   const graphIssueById = new Map(scan.graphIssues.map((issue) => [issue.id, issue]));
@@ -29,6 +36,7 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
     scan.findings.flatMap((finding) => finding.graphIssueIds),
   );
   const edits: TextEdit[] = [];
+  const manualActions: ManualAction[] = [];
   const abstentionReasons = scan.graphIssues
     .filter((issue) => issue.kind === "source-conflict" || issue.kind === "cycle")
     .filter((issue) => !referencedGraphIssueIds.has(issue.id))
@@ -91,7 +99,22 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
           `Finding ${finding.id} does not preserve its blocked graph resolution.`,
         );
       }
-      abstentionReasons.push(`${finding.id}: ${resolution.issue.message}`);
+      const reason = resolution.issue.message;
+      abstentionReasons.push(`${finding.id}: ${reason}`);
+      manualActions.push({
+        findingId: finding.id,
+        migrationEdgeIds: resolution.edgeIds,
+        target: null,
+        reason,
+        reasonCode: `graph-${resolution.issue.kind}`,
+        behaviorChanges: [
+          ...new Set(
+            resolution.edgeIds.flatMap(
+              (resolvedEdgeId) => edgeById.get(resolvedEdgeId)?.behaviorChanges ?? [],
+            ),
+          ),
+        ].sort(compareStrings),
+      });
       continue;
     }
 
@@ -99,9 +122,22 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
       throw new SourceLockError(`Finding ${finding.id} references an issue on a resolved path.`);
     }
     if (finding.remediation.kind === "none") {
-      abstentionReasons.push(
-        `${finding.id}: ${finding.abstentionReason ?? "no deterministic remediation is available."}`,
-      );
+      const reason = finding.abstentionReason ?? "No deterministic remediation is available.";
+      abstentionReasons.push(`${finding.id}: ${reason}`);
+      manualActions.push({
+        findingId: finding.id,
+        migrationEdgeIds: resolution.edgeIds,
+        target: resolution.to,
+        reason,
+        reasonCode: finding.analysis.reasonCode ?? "manual-migration-required",
+        behaviorChanges: [
+          ...new Set(
+            resolution.edgeIds.flatMap(
+              (resolvedEdgeId) => edgeById.get(resolvedEdgeId)?.behaviorChanges ?? [],
+            ),
+          ),
+        ].sort(compareStrings),
+      });
       continue;
     }
     if (resolution.to.kind !== "model" || finding.remediation.replacement !== resolution.to.id) {
@@ -137,12 +173,17 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
   }
 
   edits.sort(compareEdits);
+  manualActions.sort(compareManualActions);
   abstentionReasons.sort(compareStrings);
   const plannedEdits = abstentionReasons.length > 0 ? [] : edits;
   const findingIds = scan.findings.map((finding) => finding.id).sort(compareStrings);
   const allowedFiles = [...new Set(plannedEdits.map((edit) => edit.file))].sort(compareStrings);
   const status =
     abstentionReasons.length > 0 ? "blocked" : plannedEdits.length > 0 ? "ready" : "no-op";
+  const verificationContracts =
+    status === "blocked"
+      ? [...ANALYSIS_ONLY_VERIFICATION_CONTRACTS]
+      : [...DETERMINISTIC_VERIFICATION_CONTRACTS];
 
   return PatchPlanSchema.parse({
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -151,14 +192,10 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
     allowedFiles,
     forbiddenFiles: [],
     sourceLockHash: scan.sourceLockHash,
-    verificationContracts: [
-      "changed_files_allowlist",
-      "finding_resolved",
-      "literal_replacement_only",
-      "original_repository_unchanged",
-    ],
+    verificationContracts,
     requiresCodex: false,
     abstentionReasons,
+    manualActions,
     edits: plannedEdits,
   });
 }

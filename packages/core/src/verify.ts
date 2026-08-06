@@ -39,6 +39,54 @@ function sameStringArrays(left: string[], right: string[]): boolean {
 export async function verifyPatchPlan(request: VerifyPatchPlanRequest): Promise<VerifyReport> {
   const repositoryRoot = await normalizeRepositoryRoot(request.repositoryRoot);
   const originalTreeHash = await hashRepositoryTree(repositoryRoot);
+
+  if (request.plan.status === "blocked") {
+    const noAutomaticTransformation =
+      request.plan.edits.length === 0 &&
+      request.plan.allowedFiles.length === 0 &&
+      request.preview.files.length === 0;
+    const originalUnchanged = (await hashRepositoryTree(repositoryRoot)) === originalTreeHash;
+    const checks: VerificationResult["checks"] = [
+      {
+        id: "manual_migration_resolved",
+        passed: false,
+        evidence: [
+          `manualActions=${request.plan.manualActions.length}`,
+          `abstentionReasons=${request.plan.abstentionReasons.length}`,
+        ],
+      },
+      {
+        id: "no_automatic_transformation",
+        passed: noAutomaticTransformation,
+        evidence: [
+          `plannedEdits=${request.plan.edits.length}`,
+          `previewFiles=${request.preview.files.length}`,
+        ],
+      },
+      {
+        id: "original_repository_unchanged",
+        passed: originalUnchanged,
+        evidence: [`treeHash=${originalTreeHash}`],
+      },
+    ];
+
+    return VerifyReportSchema.parse({
+      schemaVersion: REPORT_SCHEMA_VERSION,
+      kind: "verify",
+      sourceLockHash: request.scan.sourceLockHash,
+      migrationEdges: request.scan.migrationEdges,
+      graphIssues: request.scan.graphIssues,
+      findings: request.scan.findings,
+      plan: request.plan,
+      verification: {
+        passed: false,
+        runtimeBehaviorVerified: false,
+        checks,
+        changedFiles: [],
+      },
+    });
+  }
+
   const temporaryParent = await mkdtemp(path.join(tmpdir(), "migration-doctor-"));
   const temporaryRoot = path.join(temporaryParent, "repository");
 

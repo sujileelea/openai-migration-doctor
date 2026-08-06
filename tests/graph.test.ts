@@ -5,6 +5,7 @@ import { type MigrationLanguage, resolveMigrationPath } from "../packages/core/s
 import {
   type MigrationEdge,
   MigrationEdgeSchema,
+  REPORT_SCHEMA_VERSION,
   type ResourceRef,
   ResourceRefSchema,
 } from "../packages/core/src/schemas.js";
@@ -258,7 +259,7 @@ describe("migration graph resolution", () => {
       edgeIds: ["synthetic.alpha.to.beta.model-page"],
     });
     expect(terminal).toEqual({
-      schemaVersion: "2.0.0",
+      schemaVersion: REPORT_SCHEMA_VERSION,
       status: "unmapped",
       language: "typescript",
       from: { kind: "model", id: "synthetic-unmapped" },

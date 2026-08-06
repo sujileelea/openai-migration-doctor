@@ -62,6 +62,13 @@ function renderFindings(findings: Finding[], edges: MigrationEdge[]): string[] {
     lines.push(`- Evidence: ${code(finding.evidence)}`);
     lines.push(`- Confidence: ${finding.confidence}`);
     lines.push(`- Automation tier: ${finding.automationTier}`);
+    lines.push(`- Analysis family: ${code(finding.analysis.family)}`);
+    lines.push(`- Feature: ${code(finding.analysis.feature)}`);
+    lines.push(`- Pattern: ${code(finding.analysis.pattern)}`);
+    lines.push(`- Disposition: ${finding.analysis.disposition}`);
+    if (finding.analysis.reasonCode) {
+      lines.push(`- Reason code: ${code(finding.analysis.reasonCode)}`);
+    }
     lines.push(`- Human review: ${finding.reviewRequired ? "required" : "not required"}`);
     if (finding.remediation.kind === "replace-string-literal") {
       lines.push(`- Recommended replacement: ${code(finding.remediation.replacement)}`);
@@ -103,6 +110,26 @@ function renderPlan(plan: PatchPlan): string[] {
       lines.push(
         `| ${code(edit.file)} | ${edit.line}:${edit.column} | ${code(edit.expectedText)} -> ${code(edit.replacementText)} |`,
       );
+    }
+  }
+  if (plan.manualActions.length > 0) {
+    lines.push("", "### Manual migration actions", "");
+    for (const action of plan.manualActions) {
+      const target = action.target ? `${action.target.kind}:${action.target.id}` : "unresolved";
+      lines.push(`#### ${code(action.findingId)}`, "");
+      lines.push(`- Target: ${code(target)}`);
+      lines.push(`- Reason code: ${code(action.reasonCode)}`);
+      lines.push(`- Reason: ${action.reason}`);
+      if (action.behaviorChanges.length > 0) {
+        lines.push("- Behavior changes:");
+        for (const behaviorChange of action.behaviorChanges) {
+          lines.push(`  - ${behaviorChange}`);
+        }
+      }
+      lines.push("");
+    }
+    if (lines.at(-1) === "") {
+      lines.pop();
     }
   }
   if (plan.abstentionReasons.length > 0) {

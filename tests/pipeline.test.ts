@@ -2,6 +2,7 @@ import { appendFile, cp, mkdtemp, readFile, rm, symlink } from "node:fs/promises
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  ANALYSIS_ONLY_VERIFICATION_CONTRACTS,
   applyTextEdits,
   canonicalJson,
   createPatchPreview,
@@ -244,6 +245,97 @@ describe("deterministic TypeScript vertical slice", () => {
     expect(plan.edits).toEqual([]);
     expect(plan.allowedFiles).toEqual([]);
     expect(preview.files).toEqual([]);
+  });
+
+  it("creates a source-backed manual action and analysis-only verification for a blocked plan", async () => {
+    const root = fixturePath("direct-model-literal");
+    const scan = await scanFixture("direct-model-literal");
+    const finding = scan.findings[0];
+    const reviewedEdge = scan.migrationEdges[0];
+    expect(finding).toBeDefined();
+    expect(reviewedEdge).toBeDefined();
+    if (!finding || !reviewedEdge) {
+      return;
+    }
+
+    const manualEdge = {
+      ...reviewedEdge,
+      id: "synthetic.assistants-api.to.responses-api",
+      from: { kind: "product" as const, id: "assistants-api" },
+      to: { kind: "product" as const, id: "responses-api" },
+      behaviorChanges: [
+        "Conversation state and tool orchestration remain application responsibilities.",
+      ],
+      automationTier: "C" as const,
+      reviewRequired: true,
+    };
+    const manualFinding = {
+      ...finding,
+      id: sha256("synthetic-assistants-analysis-only"),
+      kind: "analysis-only" as const,
+      resource: manualEdge.from,
+      ruleId: "openai.assistants.api.runs",
+      migrationEdgeIds: [manualEdge.id],
+      automationTier: "C" as const,
+      reviewRequired: true,
+      analysis: {
+        family: "assistants-api" as const,
+        feature: "runs" as const,
+        pattern: "direct" as const,
+        disposition: "supported" as const,
+        reasonCode: "manual-migration-required",
+      },
+      abstentionReason: "Run orchestration requires a manual migration.",
+      remediation: { kind: "none" as const },
+    };
+    const manualScan = {
+      ...scan,
+      migrationEdges: [manualEdge],
+      findings: [manualFinding],
+      summary: { total: 1, blocking: 1, graphIssues: 0 },
+    };
+
+    const plan = createPlanReport(manualScan).plan;
+    const preview = await createPatchPreview(root, manualScan, plan);
+    const report = await verifyPatchPlan({
+      repositoryRoot: root,
+      scan: manualScan,
+      plan,
+      preview,
+      registry,
+      adapters: [adapter],
+    });
+
+    expect(plan).toMatchObject({
+      status: "blocked",
+      requiresCodex: false,
+      edits: [],
+      allowedFiles: [],
+      verificationContracts: [...ANALYSIS_ONLY_VERIFICATION_CONTRACTS],
+      manualActions: [
+        {
+          findingId: manualFinding.id,
+          migrationEdgeIds: [manualEdge.id],
+          target: manualEdge.to,
+          reasonCode: "manual-migration-required",
+          reason: "Run orchestration requires a manual migration.",
+          behaviorChanges: manualEdge.behaviorChanges,
+        },
+      ],
+    });
+    expect(preview.files).toEqual([]);
+    expect(report.verification).toMatchObject({
+      passed: false,
+      changedFiles: [],
+      checks: [
+        { id: "manual_migration_resolved", passed: false },
+        { id: "no_automatic_transformation", passed: true },
+        { id: "original_repository_unchanged", passed: true },
+      ],
+    });
+    expect(report.verification.checks.map((check) => check.id)).not.toContain(
+      "literal_replacement_only",
+    );
   });
 
   it("verifies a repository whose root name matches an excluded directory", async () => {

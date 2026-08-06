@@ -71,6 +71,17 @@ describe("migration graph integration", () => {
     const plan = createPlanReport(scan).plan;
     expect(plan.status).toBe("blocked");
     expect(plan.edits).toEqual([]);
+    expect(plan.manualActions).toEqual([
+      expect.objectContaining({
+        findingId: scan.findings[0]?.id,
+        migrationEdgeIds: [
+          "synthetic.transcribe.to.replacement-a",
+          "synthetic.transcribe.to.replacement-b",
+        ],
+        target: null,
+        reasonCode: "graph-source-conflict",
+      }),
+    ]);
 
     const preview = await createPatchPreview(fixturePath("direct-model-literal"), scan, plan);
     expect(preview.files).toEqual([]);
@@ -91,12 +102,74 @@ describe("migration graph integration", () => {
       adapters: [adapter],
     });
     const verificationMarkdown = renderMarkdown(verification);
+    expect(verification.verification.checks.map((check) => check.id)).toEqual(
+      plan.verificationContracts,
+    );
+    expect(verification.verification.checks.map((check) => check.id)).not.toContain(
+      "literal_replacement_only",
+    );
     expect(verificationMarkdown).toContain("src/transcribe.ts:11:13");
     expect(verificationMarkdown).toContain(
       "No source change was verified; resolve the blocked plan before evaluating runtime behavior.",
     );
     expect(verificationMarkdown).not.toContain(
       "The snapshot change can alter transcription output",
+    );
+  });
+
+  it("preserves an Assistants graph conflict as the manual-action reason", async () => {
+    const sourceA = syntheticSource("assistants-conflict-a", "e");
+    const sourceB = syntheticSource("assistants-conflict-b", "f");
+    const from = { kind: "product" as const, id: "assistants-api" };
+    const registry = await registryFrom(
+      [sourceA, sourceB],
+      [
+        {
+          id: "synthetic.assistants.to.responses-a",
+          from,
+          to: { kind: "product", id: "responses-a" },
+          sources: [sourceA],
+          languages: ["typescript"],
+          behaviorChanges: ["Synthetic destination A."],
+          automationTier: "C",
+          reviewRequired: true,
+        },
+        {
+          id: "synthetic.assistants.to.responses-b",
+          from,
+          to: { kind: "product", id: "responses-b" },
+          sources: [sourceB],
+          languages: ["typescript"],
+          behaviorChanges: ["Synthetic destination B."],
+          automationTier: "C",
+          reviewRequired: true,
+        },
+      ],
+    );
+    const scan = await scanRepository({
+      repositoryRoot: fixturePath("assistants-direct"),
+      registry,
+      adapters: [adapter],
+    });
+
+    expect(scan.graphIssues).toEqual([
+      expect.objectContaining({
+        kind: "source-conflict",
+        resource: expect.objectContaining(from),
+      }),
+    ]);
+    const plan = createPlanReport(scan).plan;
+    expect(plan.manualActions).toHaveLength(15);
+    expect(
+      plan.manualActions.every(
+        (action) =>
+          action.target === null &&
+          action.reasonCode === "graph-source-conflict" &&
+          action.reason.includes("Conflicting migration destinations"),
+      ),
+    ).toBe(true);
+    expect(plan.manualActions.map((action) => action.reasonCode)).not.toContain(
+      "manual-migration-required",
     );
   });
 

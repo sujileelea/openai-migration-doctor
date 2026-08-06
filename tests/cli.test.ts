@@ -63,6 +63,56 @@ describe("CLI exit-code contract", () => {
     expect(first.stderr).toContain("[telemetry]");
   });
 
+  it("keeps Assistants analysis review-only across every command", () => {
+    const repository = fixturePath("assistants-direct");
+    const scan = runCli(["scan", repository, "--format", "json"]);
+    const plan = runCli(["plan", repository, "--format", "json"]);
+    const migrate = runCli(["migrate", repository, "--format", "json"]);
+    const verify = runCli(["verify", repository, "--format", "json"]);
+
+    expect([scan.status, plan.status, migrate.status, verify.status]).toEqual([1, 1, 1, 1]);
+    expect(JSON.parse(scan.stdout)).toMatchObject({
+      kind: "scan",
+      summary: { total: 15, blocking: 9, graphIssues: 0 },
+    });
+    expect(JSON.parse(plan.stdout)).toMatchObject({
+      kind: "plan",
+      plan: {
+        status: "blocked",
+        requiresCodex: false,
+        edits: [],
+        manualActions: expect.arrayContaining([
+          expect.objectContaining({
+            target: expect.objectContaining({
+              kind: "product",
+              id: "responses-and-conversations",
+            }),
+            reasonCode: "manual-migration-required",
+          }),
+        ]),
+      },
+    });
+    expect(JSON.parse(migrate.stdout)).toMatchObject({
+      kind: "migrate",
+      plan: { status: "blocked", edits: [] },
+      files: [],
+      applied: false,
+    });
+    expect(JSON.parse(verify.stdout)).toMatchObject({
+      kind: "verify",
+      verification: {
+        passed: false,
+        runtimeBehaviorVerified: false,
+        changedFiles: [],
+        checks: [
+          { id: "manual_migration_resolved", passed: false },
+          { id: "no_automatic_transformation", passed: true },
+          { id: "original_repository_unchanged", passed: true },
+        ],
+      },
+    });
+  });
+
   it("returns 0 when scan has no blocking findings", () => {
     const result = runCli(["scan", fixturePath("comment-only"), "--format", "json"]);
     expect(result.status).toBe(0);
