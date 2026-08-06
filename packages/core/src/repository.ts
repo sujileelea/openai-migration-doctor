@@ -103,6 +103,15 @@ export async function repositoryFileHashes(repositoryRoot: string): Promise<Map<
   return result;
 }
 
+export function changedRepositoryFiles(
+  beforeHashes: ReadonlyMap<string, string>,
+  afterHashes: ReadonlyMap<string, string>,
+): string[] {
+  return [...new Set([...beforeHashes.keys(), ...afterHashes.keys()])]
+    .filter((file) => beforeHashes.get(file) !== afterHashes.get(file))
+    .sort(compareStrings);
+}
+
 export async function readRepositoryRevision(repositoryRoot: string): Promise<string | null> {
   const root = await normalizeRepositoryRoot(repositoryRoot);
   try {

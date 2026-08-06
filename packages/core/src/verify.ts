@@ -5,6 +5,7 @@ import { compareStrings } from "./compare.js";
 import { applyTextEdits } from "./patch.js";
 import type { LanguageAdapter } from "./ports.js";
 import {
+  changedRepositoryFiles,
   DEFAULT_EXCLUSIONS,
   hashRepositoryTree,
   normalizeRepositoryRoot,
@@ -115,10 +116,7 @@ export async function verifyPatchPlan(request: VerifyPatchPlanRequest): Promise<
     }
 
     const afterHashes = await repositoryFileHashes(temporaryRoot);
-    const changedFiles = [...afterHashes.entries()]
-      .filter(([file, hash]) => beforeHashes.get(file) !== hash)
-      .map(([file]) => file)
-      .sort(compareStrings);
+    const changedFiles = changedRepositoryFiles(beforeHashes, afterHashes);
     const expectedChangedFiles =
       request.plan.edits.length > 0 ? [...request.plan.allowedFiles] : [];
     expectedChangedFiles.sort(compareStrings);
