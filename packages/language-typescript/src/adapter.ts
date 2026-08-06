@@ -9,6 +9,7 @@ import {
   REPORT_SCHEMA_VERSION,
   resolveMigrationPath,
   resolveRepositoryFile,
+  SemanticVerifierSchema,
   sha256,
 } from "@migration-doctor/core";
 import ts from "typescript";
@@ -26,7 +27,7 @@ const SOURCE_MODEL = "gpt-4o-mini-transcribe-2025-03-20";
 const RULE_ID = "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20";
 const TYPESCRIPT_EXTENSIONS = [".cts", ".mts", ".ts", ".tsx"] as const;
 
-function findModelLiteral(call: ts.CallExpression): ts.StringLiteral | null {
+function findModelLiteral(call: ts.CallExpression, expectedModel: string): ts.StringLiteral | null {
   const request = call.arguments[0];
   if (!request || !ts.isObjectLiteralExpression(request)) {
     return null;
@@ -55,15 +56,106 @@ function findModelLiteral(call: ts.CallExpression): ts.StringLiteral | null {
     !modelProperty ||
     !ts.isPropertyAssignment(modelProperty) ||
     !ts.isStringLiteral(modelProperty.initializer) ||
-    modelProperty.initializer.text !== SOURCE_MODEL
+    modelProperty.initializer.text !== expectedModel
   ) {
     return null;
   }
   return modelProperty.initializer;
 }
 
+function findTranscriptionModelLiterals(
+  relativeFile: string,
+  content: string,
+  expectedModel: string,
+): ts.StringLiteral[] {
+  const bound = createBoundSource(relativeFile, content);
+  const parseErrors = bound.diagnostics.filter(
+    (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+  );
+  if (parseErrors.length > 0) {
+    const message = parseErrors.map(parseDiagnosticMessage).join("; ");
+    throw new AnalysisError(`Unable to parse ${relativeFile}: ${message}`);
+  }
+
+  const { checker, sourceFile } = bound;
+  const constructors = collectOpenAiConstructors(sourceFile, checker);
+  const clients = collectOpenAiClients(sourceFile, checker, constructors);
+  const literals: ts.StringLiteral[] = [];
+
+  function visit(node: ts.Node): void {
+    if (ts.isCallExpression(node)) {
+      const chain = propertyChain(node.expression);
+      const rootSymbol = chain ? checker.getSymbolAtLocation(chain.root) : undefined;
+      const client = rootSymbol ? clients.get(rootSymbol) : undefined;
+      if (
+        chain &&
+        chain.segments.length === 4 &&
+        client !== undefined &&
+        node.getStart(sourceFile) > client.constructedAt &&
+        chain.segments[1] === "audio" &&
+        chain.segments[2] === "transcriptions" &&
+        chain.segments[3] === "create"
+      ) {
+        const literal = findModelLiteral(node, expectedModel);
+        if (literal) {
+          literals.push(literal);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return literals;
+}
+
 function parseDiagnosticMessage(diagnostic: ts.Diagnostic): string {
   return ts.flattenDiagnosticMessageText(diagnostic.messageText, " ");
+}
+
+export function validateTypeScriptSource(relativeFile: string, content: string): void {
+  const parseErrors = createBoundSource(relativeFile, content).diagnostics.filter(
+    (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+  );
+  if (parseErrors.length > 0) {
+    const message = parseErrors.map(parseDiagnosticMessage).join("; ");
+    throw new AnalysisError(`Unable to parse ${relativeFile}: ${message}`);
+  }
+}
+
+export function verifyTypeScriptTranscriptionModelMigration(request: {
+  relativeFile: string;
+  beforeSource: string;
+  afterSource: string;
+  sourceModel: string;
+  targetModel: string;
+}): boolean {
+  const verifier = SemanticVerifierSchema.safeParse({
+    id: "typescript-transcription-model-exact-rewrite-v1",
+    sourceModel: request.sourceModel,
+    targetModel: request.targetModel,
+  });
+  if (!verifier.success) {
+    return false;
+  }
+  const literals = findTranscriptionModelLiterals(
+    request.relativeFile,
+    request.beforeSource,
+    verifier.data.sourceModel,
+  );
+  if (literals.length === 0) {
+    return false;
+  }
+
+  let expectedSource = request.beforeSource;
+  for (const literal of literals.sort((left, right) => right.getStart() - left.getStart())) {
+    const start = literal.getStart() + 1;
+    const end = literal.getEnd() - 1;
+    expectedSource =
+      expectedSource.slice(0, start) + verifier.data.targetModel + expectedSource.slice(end);
+  }
+  validateTypeScriptSource(request.relativeFile, request.afterSource);
+  return request.afterSource === expectedSource;
 }
 
 function scanSource(
@@ -128,7 +220,7 @@ function scanSource(
         chain.segments[2] === "transcriptions" &&
         chain.segments[3] === "create"
       ) {
-        const literal = findModelLiteral(node);
+        const literal = findModelLiteral(node, SOURCE_MODEL);
         if (literal) {
           const startOffset = literal.getStart(sourceFile) + 1;
           const endOffset = literal.getEnd() - 1;
@@ -240,7 +332,6 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
           const message = parseErrors.map(parseDiagnosticMessage).join("; ");
           throw new AnalysisError(`Unable to parse ${relativeFile}: ${message}`);
         }
-
         const constructors = collectOpenAiConstructors(bound.sourceFile, bound.checker);
         const openAiTypes = collectOpenAiTypeSymbols(bound.sourceFile, bound.checker);
         const clients = collectOpenAiClients(bound.sourceFile, bound.checker, constructors);

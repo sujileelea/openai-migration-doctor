@@ -1,10 +1,12 @@
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
+import { canonicalJson } from "./canonical-json.js";
 import { compareStrings } from "./compare.js";
 import { SourceLockError } from "./errors.js";
 import { sha256 } from "./hash.js";
 import {
   type MigrationEdge,
+  MigrationEdgeSchema,
   MigrationRecordSchema,
   SourceLockSchema,
   type SourceRecord,
@@ -16,6 +18,40 @@ export type MigrationRegistry = {
   sources: SourceRecord[];
   edges: MigrationEdge[];
 };
+
+const validatedRegistries = new WeakMap<object, string>();
+
+export function assertValidatedMigrationRegistry(
+  registry: MigrationRegistry,
+): asserts registry is MigrationRegistry {
+  snapshotValidatedMigrationRegistry(registry);
+}
+
+export function snapshotValidatedMigrationRegistry(registry: MigrationRegistry): MigrationRegistry {
+  const loadedHash = validatedRegistries.get(registry);
+  if (loadedHash === undefined) {
+    throw new SourceLockError("Migration registry must come directly from loadMigrationRegistry.");
+  }
+  let snapshot: MigrationRegistry;
+  try {
+    const sourceLockHash = registry.sourceLockHash;
+    const sources = registry.sources;
+    const edges = registry.edges;
+    snapshot = {
+      sourceLockHash,
+      sources: sources.map((source) => SourceRecordSchema.parse(source)),
+      edges: edges.map((edge) => MigrationEdgeSchema.parse(edge)),
+    };
+  } catch (error) {
+    throw new SourceLockError("Migration registry changed after source-lock validation.", {
+      cause: error,
+    });
+  }
+  if (sha256(canonicalJson(snapshot)) !== loadedHash) {
+    throw new SourceLockError("Migration registry changed after source-lock validation.");
+  }
+  return snapshot;
+}
 
 function sourceKey(source: SourceRecord["source"]): string {
   return [source.url, source.title, source.contentHash, source.retrievedAt].join("\u0000");
@@ -147,9 +183,11 @@ export async function loadMigrationRegistry(projectRoot: string): Promise<Migrat
   sources.sort((left, right) => compareStrings(left.id, right.id));
   edges.sort((left, right) => compareStrings(left.id, right.id));
 
-  return {
+  const registry = {
     sourceLockHash: sha256(lockBytes),
     sources,
     edges,
   };
+  validatedRegistries.set(registry, sha256(canonicalJson(registry)));
+  return registry;
 }

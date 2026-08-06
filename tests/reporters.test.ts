@@ -6,6 +6,7 @@ import {
   canonicalJson,
   createPatchPreview,
   createPlanReport,
+  createSemanticPlanReport,
   loadMigrationRegistry,
   scanRepository,
   sha256,
@@ -170,5 +171,77 @@ describe("reporters", () => {
     expect(markdown).toContain("Target: `product:responses-api`");
     expect(markdown).toContain("Reason code: `manual-migration-required`");
     expect(markdown).toContain("Application code must own tool orchestration.");
+  });
+
+  it("renders every frozen semantic-plan binding in Markdown", async () => {
+    const scan = await scanRepository({
+      repositoryRoot: fixturePath("direct-model-literal"),
+      registry,
+      adapters: [new TypeScriptLanguageAdapter()],
+    });
+    const finding = scan.findings[0];
+    expect(finding).toBeDefined();
+    if (!finding) {
+      return;
+    }
+
+    const semanticScan = {
+      ...scan,
+      repository: { revision: "a".repeat(40) },
+      migrationEdges: scan.migrationEdges.map((edge) => ({
+        ...edge,
+        automationTier: "B" as const,
+        reviewRequired: true,
+      })),
+      findings: [
+        {
+          ...finding,
+          kind: "migration-blocked" as const,
+          automationTier: "B" as const,
+          reviewRequired: true,
+          abstentionReason: "The migration requires a semantic source change.",
+          remediation: { kind: "none" as const },
+        },
+      ],
+    };
+    const report = createSemanticPlanReport(semanticScan, {
+      sourceFiles: [{ path: finding.location.file, beforeHash: finding.fileHash }],
+      requiredFiles: [finding.location.file],
+      forbiddenFiles: ["src/secrets.ts"],
+      instructions: [
+        "Replace the deprecated transcription request while preserving its response contract.",
+      ],
+      behaviorContractHash: "b".repeat(64),
+      baselineObservationHash: "c".repeat(64),
+    });
+
+    const markdown = renderMarkdown(report);
+
+    expect(markdown).toContain("# Migration Doctor Semantic Plan");
+    expect(markdown).toContain("## Findings");
+    expect(markdown).toContain("## Semantic patch plan");
+    expect(markdown).toContain("Status: **ready**");
+    expect(markdown).toContain("Codex required: **yes**");
+    expect(markdown).toContain(`Repository revision: \`${"a".repeat(40)}\``);
+    expect(markdown).toContain(`- \`${finding.location.file}\` (SHA-256: \`${finding.fileHash}\`)`);
+    expect(markdown).toContain("- `src/secrets.ts`");
+    expect(markdown).toContain(
+      "Replace the deprecated transcription request while preserving its response contract.",
+    );
+    expect(markdown).toContain(
+      "Semantic verifier: `typescript-transcription-model-exact-rewrite-v1`",
+    );
+    expect(markdown).toContain(
+      "Model transition: `gpt-4o-mini-transcribe-2025-03-20` -> `gpt-4o-mini-transcribe-2025-12-15`",
+    );
+    expect(markdown).toContain("Verification adapters: `typescript`");
+    expect(markdown).toContain("Verification contracts: `changed_files_allowlist`");
+    expect(markdown).toContain(
+      `Migration edges hash: \`${report.plan.semanticRemediation.migrationEdgesHash}\``,
+    );
+    expect(markdown).toContain(`Behavior contract hash: \`${"b".repeat(64)}\``);
+    expect(markdown).toContain(`Baseline observation hash: \`${"c".repeat(64)}\``);
+    expect(markdown).not.toContain(PROJECT_ROOT);
+    expect(markdown.endsWith("\n")).toBe(true);
   });
 });

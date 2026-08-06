@@ -10,7 +10,13 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadMigrationRegistry, SourceLockError, sha256 } from "@migration-doctor/core";
+import {
+  assertValidatedMigrationRegistry,
+  loadMigrationRegistry,
+  SourceLockError,
+  sha256,
+  snapshotValidatedMigrationRegistry,
+} from "@migration-doctor/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { PROJECT_ROOT } from "./helpers.js";
 
@@ -91,6 +97,46 @@ describe("source lock", () => {
         reviewRequired: true,
       }),
     );
+  });
+
+  it("brands registries and detects mutation after validated loading", async () => {
+    const registry = await loadMigrationRegistry(PROJECT_ROOT);
+
+    expect(() => assertValidatedMigrationRegistry(registry)).not.toThrow();
+    expect(() => assertValidatedMigrationRegistry({ ...registry })).toThrow(
+      "directly from loadMigrationRegistry",
+    );
+    const edge = registry.edges[0];
+    expect(edge).toBeDefined();
+    if (!edge) {
+      return;
+    }
+    const originalId = edge.id;
+    edge.id = "mutated-after-load";
+    expect(() => assertValidatedMigrationRegistry(registry)).toThrow(
+      "changed after source-lock validation",
+    );
+    edge.id = originalId;
+    expect(() => assertValidatedMigrationRegistry(registry)).not.toThrow();
+
+    const originalEdges = registry.edges;
+    const forgedEdges = originalEdges.map((candidate) => ({
+      ...candidate,
+      id: `forged.${candidate.id}`,
+    }));
+    let edgeReads = 0;
+    Object.defineProperty(registry, "edges", {
+      configurable: true,
+      get: () => (edgeReads++ === 0 ? originalEdges : forgedEdges),
+    });
+    const snapshot = snapshotValidatedMigrationRegistry(registry);
+    expect(edgeReads).toBe(1);
+    expect(snapshot.edges).toEqual(originalEdges);
+    Object.defineProperty(registry, "edges", {
+      configurable: true,
+      value: originalEdges,
+      writable: true,
+    });
   });
 
   it("fails closed when a locked artifact changes", async () => {

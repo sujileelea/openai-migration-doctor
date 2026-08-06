@@ -14,7 +14,10 @@ import {
   sha256,
   verifyPatchPlan,
 } from "@migration-doctor/core";
-import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
+import {
+  TypeScriptLanguageAdapter,
+  verifyTypeScriptTranscriptionModelMigration,
+} from "@migration-doctor/language-typescript";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { fixturePath, PROJECT_ROOT } from "./helpers.js";
 
@@ -61,6 +64,31 @@ describe("deterministic TypeScript vertical slice", () => {
       },
     });
     expect(await hashRepositoryTree(root)).toBe(before);
+  });
+
+  it("rejects a target model that injects syntax outside the bound string literal", async () => {
+    const relativeFile = "src/transcribe.ts";
+    const beforeSource = await readFile(
+      path.join(fixturePath("direct-model-literal"), relativeFile),
+      "utf8",
+    );
+    const sourceModel = "gpt-4o-mini-transcribe-2025-03-20";
+    const targetModel = 'target", extra: dangerous(), ignored: "';
+    const injectedSource = beforeSource.replace(
+      `model: "${sourceModel}"`,
+      `model: "${targetModel}"`,
+    );
+
+    expect(injectedSource).toContain("extra: dangerous()");
+    expect(
+      verifyTypeScriptTranscriptionModelMigration({
+        relativeFile,
+        beforeSource,
+        afterSource: injectedSource,
+        sourceModel,
+        targetModel,
+      }),
+    ).toBe(false);
   });
 
   it.each([

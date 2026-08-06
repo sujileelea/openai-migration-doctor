@@ -5,6 +5,7 @@ import type {
   MigrationGraphIssue,
   PatchPlan,
   Report,
+  SemanticPatchPlan,
   VerificationResult,
 } from "@migration-doctor/core";
 
@@ -160,6 +161,59 @@ function renderPlan(plan: PatchPlan): string[] {
   return lines;
 }
 
+function renderSemanticPlan(plan: SemanticPatchPlan): string[] {
+  const scope = plan.semanticRemediation;
+  const lines = [
+    "## Semantic patch plan",
+    "",
+    `Status: **${plan.status}**`,
+    `Codex required: **${plan.requiresCodex ? "yes" : "no"}**`,
+    `Repository revision: ${code(scope.repositoryRevision)}`,
+    "",
+    "### Allowed source files",
+    "",
+  ];
+
+  for (const file of scope.sourceFiles) {
+    lines.push(`- ${code(file.path)} (SHA-256: ${code(file.beforeHash)})`);
+  }
+
+  lines.push("", "### Required files", "");
+  for (const file of scope.requiredFiles) {
+    lines.push(`- ${code(file)}`);
+  }
+
+  lines.push("", "### Forbidden files", "");
+  if (plan.forbiddenFiles.length === 0) {
+    lines.push("None");
+  } else {
+    for (const file of plan.forbiddenFiles) {
+      lines.push(`- ${code(file)}`);
+    }
+  }
+
+  lines.push("", "### Migration instructions", "");
+  for (const instruction of scope.instructions) {
+    lines.push(`- ${instruction.replaceAll("\n", "\n  ")}`);
+  }
+
+  lines.push(
+    "",
+    "### Verification bindings",
+    "",
+    `- Semantic verifier: ${code(scope.semanticVerifier.id)}`,
+    `- Model transition: ${code(scope.semanticVerifier.sourceModel)} -> ${code(scope.semanticVerifier.targetModel)}`,
+    `- Verification adapters: ${scope.verificationAdapterIds.map(code).join(", ")}`,
+    `- Verification contracts: ${plan.verificationContracts.map(code).join(", ")}`,
+    `- Migration edges: ${scope.migrationEdgeIds.map(code).join(", ")}`,
+    `- Migration edges hash: ${code(scope.migrationEdgesHash)}`,
+    `- Behavior contract hash: ${code(scope.behaviorContractHash)}`,
+    `- Baseline observation hash: ${code(scope.baselineObservationHash)}`,
+  );
+
+  return lines;
+}
+
 function renderVerification(verification: VerificationResult): string[] {
   const lines = [
     "## Verification",
@@ -252,7 +306,9 @@ export function renderMarkdown(report: Report): string {
   const reportTitle =
     report.kind === "behavior-verify"
       ? "Behavior Verification"
-      : `${report.kind[0]?.toUpperCase()}${report.kind.slice(1)}`;
+      : report.kind === "semantic-plan"
+        ? "Semantic Plan"
+        : `${report.kind[0]?.toUpperCase()}${report.kind.slice(1)}`;
   const lines = [
     `# Migration Doctor ${reportTitle}`,
     "",
@@ -277,6 +333,13 @@ export function renderMarkdown(report: Report): string {
         ...renderFindings(report.findings, report.migrationEdges),
         "",
         ...renderPlan(report.plan),
+      );
+      break;
+    case "semantic-plan":
+      lines.push(
+        ...renderFindings(report.findings, report.migrationEdges),
+        "",
+        ...renderSemanticPlan(report.plan),
       );
       break;
     case "migrate":

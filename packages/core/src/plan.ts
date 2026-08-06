@@ -13,6 +13,13 @@ import {
   PlanReportSchema,
   REPORT_SCHEMA_VERSION,
   type ScanResult,
+  SEMANTIC_PLAN_SCHEMA_VERSION,
+  SEMANTIC_VERIFICATION_CONTRACTS,
+  type SemanticPatchPlan,
+  SemanticPatchPlanSchema,
+  type SemanticPlanReport,
+  SemanticPlanReportSchema,
+  type SemanticRemediationScope,
   type TextEdit,
 } from "./schemas.js";
 
@@ -28,6 +35,21 @@ function compareEdits(left: TextEdit, right: TextEdit): number {
 function compareManualActions(left: ManualAction, right: ManualAction): number {
   return compareStrings(left.findingId, right.findingId);
 }
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+export type CreateSemanticPatchPlanRequest = Pick<
+  SemanticRemediationScope,
+  | "instructions"
+  | "sourceFiles"
+  | "requiredFiles"
+  | "behaviorContractHash"
+  | "baselineObservationHash"
+> & {
+  forbiddenFiles?: string[];
+};
 
 export function createPatchPlan(scan: ScanResult): PatchPlan {
   const edgeById = new Map(scan.migrationEdges.map((edge) => [edge.id, edge]));
@@ -200,6 +222,149 @@ export function createPatchPlan(scan: ScanResult): PatchPlan {
   });
 }
 
+export function createSemanticPatchPlan(
+  scan: ScanResult,
+  request: CreateSemanticPatchPlanRequest,
+): SemanticPatchPlan {
+  if (!scan.repository.revision) {
+    throw new SourceLockError(
+      "Semantic remediation requires a scan bound to the repository's full Git revision.",
+    );
+  }
+  if (scan.findings.length === 0) {
+    throw new SourceLockError("Semantic remediation requires at least one migration finding.");
+  }
+
+  const migrationEdgeIds = new Set<string>();
+  let semanticVerifier: SemanticRemediationScope["semanticVerifier"] | undefined;
+  for (const finding of scan.findings) {
+    if (
+      finding.kind !== "migration-blocked" ||
+      finding.automationTier !== "B" ||
+      !finding.reviewRequired ||
+      finding.analysis.disposition !== "supported" ||
+      finding.graphIssueIds.length > 0 ||
+      finding.remediation.kind !== "none"
+    ) {
+      throw new SourceLockError(
+        `Finding ${finding.id} is not eligible for frozen Tier B semantic remediation.`,
+      );
+    }
+
+    const resolution = resolveMigrationPath(
+      scan.migrationEdges,
+      finding.resource,
+      finding.language,
+    );
+    if (resolution.status !== "resolved" || resolution.automationTier !== "B") {
+      throw new SourceLockError(
+        `Finding ${finding.id} does not resolve to an unambiguous Tier B migration path.`,
+      );
+    }
+    if (!sameStrings(finding.migrationEdgeIds, resolution.edgeIds)) {
+      throw new SourceLockError(
+        `Finding ${finding.id} migration path does not match the locked graph resolution.`,
+      );
+    }
+    if (
+      finding.language !== "typescript" ||
+      finding.ruleId !== "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20" ||
+      finding.resource.kind !== "model" ||
+      finding.resource.id !== "gpt-4o-mini-transcribe-2025-03-20" ||
+      resolution.to.kind !== "model"
+    ) {
+      throw new SourceLockError(
+        `Finding ${finding.id} has no trusted deterministic semantic postcondition.`,
+      );
+    }
+    const findingVerifier: SemanticRemediationScope["semanticVerifier"] = {
+      id: "typescript-transcription-model-exact-rewrite-v1",
+      sourceModel: finding.resource.id,
+      targetModel: resolution.to.id,
+    };
+    if (
+      semanticVerifier !== undefined &&
+      canonicalJson(semanticVerifier) !== canonicalJson(findingVerifier)
+    ) {
+      throw new SourceLockError(
+        "Semantic remediation findings do not share one trusted deterministic postcondition.",
+      );
+    }
+    semanticVerifier = findingVerifier;
+    for (const migrationEdgeId of resolution.edgeIds) {
+      migrationEdgeIds.add(migrationEdgeId);
+    }
+  }
+  if (semanticVerifier === undefined) {
+    throw new SourceLockError("Semantic remediation has no trusted deterministic postcondition.");
+  }
+
+  const sourceFiles = [...request.sourceFiles].sort((left, right) =>
+    compareStrings(left.path, right.path),
+  );
+  const allowedFiles = sourceFiles.map((file) => file.path);
+  const requiredFiles = [...request.requiredFiles].sort(compareStrings);
+  const findingFiles = [...new Set(scan.findings.map((finding) => finding.location.file))].sort(
+    compareStrings,
+  );
+  if (!sameStrings(allowedFiles, findingFiles) || !sameStrings(requiredFiles, findingFiles)) {
+    throw new SourceLockError(
+      "Semantic remediation source and required files must exactly match finding files.",
+    );
+  }
+  const verificationAdapterIds = ["typescript"];
+  const selectedMigrationEdges = scan.migrationEdges
+    .filter((edge) => migrationEdgeIds.has(edge.id))
+    .sort((left, right) => compareStrings(left.id, right.id));
+  if (selectedMigrationEdges.length !== migrationEdgeIds.size) {
+    throw new SourceLockError("Semantic remediation cannot bind every selected migration edge.");
+  }
+  const allowedFileSet = new Set(allowedFiles);
+  const requiredFileSet = new Set(requiredFiles);
+  for (const finding of scan.findings) {
+    if (!allowedFileSet.has(finding.location.file)) {
+      throw new SourceLockError(
+        `Semantic remediation does not expose finding file ${finding.location.file}.`,
+      );
+    }
+    if (!requiredFileSet.has(finding.location.file)) {
+      throw new SourceLockError(
+        `Semantic remediation does not require finding file ${finding.location.file}.`,
+      );
+    }
+    const frozenSource = sourceFiles.find((file) => file.path === finding.location.file);
+    if (!frozenSource || frozenSource.beforeHash !== finding.fileHash) {
+      throw new SourceLockError(
+        `Semantic remediation source hash does not match finding file ${finding.location.file}.`,
+      );
+    }
+  }
+
+  return SemanticPatchPlanSchema.parse({
+    schemaVersion: SEMANTIC_PLAN_SCHEMA_VERSION,
+    kind: "semantic-patch-plan",
+    status: "ready",
+    findingIds: scan.findings.map((finding) => finding.id).sort(compareStrings),
+    allowedFiles,
+    forbiddenFiles: [...(request.forbiddenFiles ?? [])].sort(compareStrings),
+    sourceLockHash: scan.sourceLockHash,
+    verificationContracts: [...SEMANTIC_VERIFICATION_CONTRACTS],
+    requiresCodex: true,
+    semanticRemediation: {
+      repositoryRevision: scan.repository.revision,
+      instructions: [...request.instructions],
+      sourceFiles,
+      requiredFiles,
+      migrationEdgeIds: [...migrationEdgeIds].sort(compareStrings),
+      migrationEdgesHash: sha256(canonicalJson(selectedMigrationEdges)),
+      verificationAdapterIds,
+      semanticVerifier,
+      behaviorContractHash: request.behaviorContractHash,
+      baselineObservationHash: request.baselineObservationHash,
+    },
+  });
+}
+
 export function createPlanReport(scan: ScanResult): PlanReport {
   return PlanReportSchema.parse({
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -209,5 +374,20 @@ export function createPlanReport(scan: ScanResult): PlanReport {
     graphIssues: scan.graphIssues,
     findings: scan.findings,
     plan: createPatchPlan(scan),
+  });
+}
+
+export function createSemanticPlanReport(
+  scan: ScanResult,
+  request: CreateSemanticPatchPlanRequest,
+): SemanticPlanReport {
+  return SemanticPlanReportSchema.parse({
+    schemaVersion: SEMANTIC_PLAN_SCHEMA_VERSION,
+    kind: "semantic-plan",
+    sourceLockHash: scan.sourceLockHash,
+    migrationEdges: scan.migrationEdges,
+    graphIssues: scan.graphIssues,
+    findings: scan.findings,
+    plan: createSemanticPatchPlan(scan, request),
   });
 }

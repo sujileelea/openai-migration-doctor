@@ -3,6 +3,7 @@ import type { BehaviorVerifyReport } from "./behavior.js";
 
 export const SOURCE_SCHEMA_VERSION = "1.0.0" as const;
 export const REPORT_SCHEMA_VERSION = "3.0.0" as const;
+export const SEMANTIC_PLAN_SCHEMA_VERSION = "1.0.0" as const;
 
 export const DETERMINISTIC_VERIFICATION_CONTRACTS = [
   "changed_files_allowlist",
@@ -15,6 +16,13 @@ export const ANALYSIS_ONLY_VERIFICATION_CONTRACTS = [
   "manual_migration_resolved",
   "no_automatic_transformation",
   "original_repository_unchanged",
+] as const;
+
+export const SEMANTIC_VERIFICATION_CONTRACTS = [
+  "changed_files_allowlist",
+  "finding_resolved",
+  "semantic_postcondition",
+  "original_repository_revision_unchanged",
 ] as const;
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -47,12 +55,84 @@ export const AnalysisDispositionSchema = z.enum(["supported", "abstained"]);
 const StableReasonCodeSchema = z
   .string()
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u, "Expected a stable kebab-case reason code.");
+const RepositoryRevisionSchema = z
+  .string()
+  .regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u, "Expected a full Git object ID.");
+const SemanticInstructionSchema = z
+  .string()
+  .min(1)
+  .max(4000)
+  .refine((value) => value === value.trim(), {
+    message: "Semantic remediation instructions cannot have surrounding whitespace.",
+  });
 const RelativePathSchema = z
   .string()
   .min(1)
   .refine((value) => !value.startsWith("/") && !value.split("/").includes(".."), {
     message: "Expected a safe relative POSIX path.",
   });
+
+const StableIdentifierSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u, "Expected a stable report-safe identifier.");
+const WindowsReservedNameSchema = /^(?:con|prn|aux|nul|clock\$|com[1-9]|lpt[1-9])(?:\..*)?$/iu;
+const SemanticRelativePathSchema = RelativePathSchema.refine((value) => {
+  if (
+    value.startsWith("/") ||
+    /^[a-zA-Z]:/u.test(value) ||
+    value.includes("\\") ||
+    [...value].some((character) => {
+      const codePoint = character.codePointAt(0);
+      return codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f);
+    })
+  ) {
+    return false;
+  }
+  const segments = value.split("/");
+  return (
+    value.length <= 4096 &&
+    segments.length <= 32 &&
+    segments.every(
+      (segment) =>
+        segment.length > 0 &&
+        segment !== "." &&
+        segment !== ".." &&
+        !segment.includes(":") &&
+        !/[. ]$/u.test(segment) &&
+        !WindowsReservedNameSchema.test(segment),
+    )
+  );
+}, "Expected a portable relative POSIX path.");
+
+function portablePathKey(value: string): string {
+  return value.normalize("NFC").toLowerCase();
+}
+
+function addPortablePathIssues(
+  pathGroups: ReadonlyArray<readonly [readonly PropertyKey[], readonly string[]]>,
+  context: z.RefinementCtx,
+): void {
+  const spellingsByKey = new Map<string, Set<string>>();
+  for (const [, paths] of pathGroups) {
+    for (const file of paths) {
+      const spellings = spellingsByKey.get(portablePathKey(file)) ?? new Set<string>();
+      spellings.add(file);
+      spellingsByKey.set(portablePathKey(file), spellings);
+    }
+  }
+
+  for (const [group, paths] of pathGroups) {
+    for (const [index, file] of paths.entries()) {
+      if ((spellingsByKey.get(portablePathKey(file))?.size ?? 0) > 1) {
+        context.addIssue({
+          code: "custom",
+          message: "Patch plan paths must not collide by case or Unicode normalization.",
+          path: [...group, index],
+        });
+      }
+    }
+  }
+}
 
 const resourceShape = {
   id: z.string().min(1),
@@ -322,6 +402,151 @@ export const TextEditSchema = z.object({
   originalFileHash: Sha256Schema,
 });
 
+export const SemanticVerifierSchema = z
+  .object({
+    id: z.literal("typescript-transcription-model-exact-rewrite-v1"),
+    sourceModel: StableIdentifierSchema.max(256),
+    targetModel: StableIdentifierSchema.max(256),
+  })
+  .strict()
+  .superRefine((verifier, context) => {
+    if (verifier.sourceModel === verifier.targetModel) {
+      context.addIssue({
+        code: "custom",
+        message: "A semantic verifier must bind different source and target models.",
+        path: ["targetModel"],
+      });
+    }
+  });
+
+export const SemanticRemediationScopeSchema = z
+  .object({
+    repositoryRevision: RepositoryRevisionSchema,
+    instructions: z.array(SemanticInstructionSchema).min(1).max(32),
+    sourceFiles: z
+      .array(
+        z
+          .object({
+            path: SemanticRelativePathSchema,
+            beforeHash: Sha256Schema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(64),
+    requiredFiles: z.array(SemanticRelativePathSchema).min(1).max(64),
+    migrationEdgeIds: z.array(StableIdentifierSchema).min(1).max(64),
+    migrationEdgesHash: Sha256Schema,
+    verificationAdapterIds: z.array(StableIdentifierSchema).min(1).max(16),
+    semanticVerifier: SemanticVerifierSchema,
+    behaviorContractHash: Sha256Schema,
+    baselineObservationHash: Sha256Schema,
+  })
+  .strict()
+  .superRefine((scope, context) => {
+    for (const [path, values, label] of [
+      [["instructions"], scope.instructions, "Semantic remediation instructions"],
+      [
+        ["sourceFiles"],
+        scope.sourceFiles.map((file) => file.path),
+        "Semantic remediation source files",
+      ],
+      [["requiredFiles"], scope.requiredFiles, "Semantic remediation required files"],
+      [["migrationEdgeIds"], scope.migrationEdgeIds, "Semantic remediation migration edge IDs"],
+      [
+        ["verificationAdapterIds"],
+        scope.verificationAdapterIds,
+        "Semantic remediation verification adapter IDs",
+      ],
+    ] as const) {
+      if (new Set(values).size !== values.length) {
+        context.addIssue({
+          code: "custom",
+          message: `${label} must be unique.`,
+          path: [...path],
+        });
+      }
+    }
+  });
+
+export const SemanticPatchPlanSchema = z
+  .object({
+    schemaVersion: z.literal(SEMANTIC_PLAN_SCHEMA_VERSION),
+    kind: z.literal("semantic-patch-plan"),
+    status: z.literal("ready"),
+    findingIds: z.array(Sha256Schema).min(1),
+    allowedFiles: z.array(SemanticRelativePathSchema).min(1).max(64),
+    forbiddenFiles: z.array(SemanticRelativePathSchema).max(256),
+    sourceLockHash: Sha256Schema,
+    verificationContracts: z.array(z.string().min(1)),
+    requiresCodex: z.literal(true),
+    semanticRemediation: SemanticRemediationScopeSchema,
+  })
+  .strict()
+  .superRefine((plan, context) => {
+    if (
+      plan.verificationContracts.length !== SEMANTIC_VERIFICATION_CONTRACTS.length ||
+      !plan.verificationContracts.every(
+        (contract, index) => contract === SEMANTIC_VERIFICATION_CONTRACTS[index],
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "A semantic patch plan must use only semantic verification contracts.",
+        path: ["verificationContracts"],
+      });
+    }
+    for (const [path, values, label] of [
+      [["findingIds"], plan.findingIds, "Semantic patch plan finding IDs"],
+      [["allowedFiles"], plan.allowedFiles, "Semantic patch plan allowed files"],
+      [["forbiddenFiles"], plan.forbiddenFiles, "Semantic patch plan forbidden files"],
+    ] as const) {
+      if (new Set(values).size !== values.length) {
+        context.addIssue({ code: "custom", message: `${label} must be unique.`, path: [...path] });
+      }
+    }
+
+    const allowedFiles = new Set(plan.allowedFiles);
+    for (const [index, file] of plan.forbiddenFiles.entries()) {
+      if (allowedFiles.has(file)) {
+        context.addIssue({
+          code: "custom",
+          message: "A semantic patch plan cannot both allow and forbid the same file.",
+          path: ["forbiddenFiles", index],
+        });
+      }
+    }
+    for (const [index, file] of plan.semanticRemediation.requiredFiles.entries()) {
+      if (!allowedFiles.has(file)) {
+        context.addIssue({
+          code: "custom",
+          message: "Every semantic remediation required file must also be allowed.",
+          path: ["semanticRemediation", "requiredFiles", index],
+        });
+      }
+    }
+    const sourcePaths = plan.semanticRemediation.sourceFiles.map((file) => file.path);
+    if (
+      sourcePaths.length !== plan.allowedFiles.length ||
+      !sourcePaths.every((file, index) => file === plan.allowedFiles[index])
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Semantic remediation source files must exactly match the plan allowlist.",
+        path: ["semanticRemediation", "sourceFiles"],
+      });
+    }
+    addPortablePathIssues(
+      [
+        [["allowedFiles"], plan.allowedFiles],
+        [["forbiddenFiles"], plan.forbiddenFiles],
+        [["semanticRemediation", "sourceFiles"], sourcePaths],
+        [["semanticRemediation", "requiredFiles"], plan.semanticRemediation.requiredFiles],
+      ],
+      context,
+    );
+  });
+
 export const PatchPlanSchema = z
   .object({
     schemaVersion: z.literal(REPORT_SCHEMA_VERSION),
@@ -447,6 +672,18 @@ export const PlanReportSchema = z.object({
   plan: PatchPlanSchema,
 });
 
+export const SemanticPlanReportSchema = z
+  .object({
+    schemaVersion: z.literal(SEMANTIC_PLAN_SCHEMA_VERSION),
+    kind: z.literal("semantic-plan"),
+    sourceLockHash: Sha256Schema,
+    migrationEdges: z.array(MigrationEdgeSchema),
+    graphIssues: z.array(MigrationGraphIssueSchema),
+    findings: z.array(FindingSchema),
+    plan: SemanticPatchPlanSchema,
+  })
+  .strict();
+
 export const PatchPreviewFileSchema = z.object({
   path: RelativePathSchema,
   beforeHash: Sha256Schema,
@@ -530,11 +767,21 @@ export type SourceLock = z.infer<typeof SourceLockSchema>;
 export type Finding = z.infer<typeof FindingSchema>;
 export type ManualAction = z.infer<typeof ManualActionSchema>;
 export type TextEdit = z.infer<typeof TextEditSchema>;
+export type SemanticVerifier = z.infer<typeof SemanticVerifierSchema>;
+export type SemanticRemediationScope = z.infer<typeof SemanticRemediationScopeSchema>;
+export type SemanticPatchPlan = z.infer<typeof SemanticPatchPlanSchema>;
 export type PatchPlan = z.infer<typeof PatchPlanSchema>;
 export type ScanResult = z.infer<typeof ScanResultSchema>;
 export type PlanReport = z.infer<typeof PlanReportSchema>;
+export type SemanticPlanReport = z.infer<typeof SemanticPlanReportSchema>;
 export type PatchPreview = z.infer<typeof PatchPreviewSchema>;
 export type PatchPreviewFile = z.infer<typeof PatchPreviewFileSchema>;
 export type VerificationResult = z.infer<typeof VerificationResultSchema>;
 export type VerifyReport = z.infer<typeof VerifyReportSchema>;
-export type Report = ScanResult | PlanReport | PatchPreview | VerifyReport | BehaviorVerifyReport;
+export type Report =
+  | ScanResult
+  | PlanReport
+  | SemanticPlanReport
+  | PatchPreview
+  | VerifyReport
+  | BehaviorVerifyReport;
