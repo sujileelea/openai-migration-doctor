@@ -2,7 +2,7 @@
 
 > Deterministic detection, source-grounded planning, scoped transformation, and behavioral verification for OpenAI API migrations.
 
-**Project status:** pre-alpha vertical slice. Local source builds now support one reviewed TypeScript migration rule end to end. The package is not published, runtime behavioral parity is not yet evaluated, and all benchmark numbers below remain targets.
+**Project status:** pre-alpha. Local source builds support one deterministic TypeScript model-snapshot migration end to end and review-only Assistants API analysis. The package is not published, Assistants transformation is not implemented, and runtime behavioral parity is not yet evaluated.
 
 Migration Doctor is an **unofficial developer tool intended for open-source release** after license and provenance review. It is not an OpenAI product and is not affiliated with or endorsed by OpenAI.
 
@@ -27,8 +27,10 @@ The current `migration.lock` pins:
 
 - [OpenAI API deprecations](https://developers.openai.com/api/docs/deprecations)
 - [GPT-4o mini Transcribe model](https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe)
+- [Assistants migration guide](https://developers.openai.com/api/docs/assistants/migration)
+- [Migrate from prompt objects](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object)
 
-Assistants, Agent Builder, Codex, and skill documentation are planned source families, not current rule coverage.
+Agent Builder, Codex, and skill documentation remain planned source families, not current rule coverage.
 
 Official documentation changes over time. Migration Doctor versions reviewed source records and content hashes; it does not vendor the raw documentation pages. It never silently resolves a source disagreement. If two current sources imply incompatible destinations, the finding is routed to human review.
 
@@ -47,11 +49,12 @@ corepack pnpm run doctor scan fixtures/typescript/direct-model-literal
 corepack pnpm run doctor plan fixtures/typescript/direct-model-literal
 corepack pnpm run doctor migrate fixtures/typescript/direct-model-literal --risk safe
 corepack pnpm run doctor verify fixtures/typescript/direct-model-literal
+corepack pnpm run doctor scan fixtures/typescript/assistants-direct
 ```
 
 Use `--format json` for canonical machine output. Execution duration and cache state are written to stderr so the JSON remains byte-stable for the same repository and source lock.
 
-Locked source-registry artifacts remain on schema `1.0.0`. Findings and command reports use schema `2.0.0`; the versions are independent so report-contract changes do not rewrite reviewed source evidence.
+Locked source-registry artifacts remain on schema `1.0.0`. Findings and command reports use schema `3.0.0`; the versions are independent so report-contract changes do not rewrite reviewed source evidence.
 
 ### `scan`
 
@@ -59,7 +62,7 @@ Indexes supported TypeScript files and reports exact evidence without calling an
 
 ### `plan`
 
-Combines findings with the locked migration graph, resolves a unique terminal destination, and freezes exact edit offsets, source hashes, and verification contracts.
+Combines findings with the locked migration graph and freezes exact edit offsets or source-backed manual actions, source hashes, and verification contracts.
 
 ### `migrate`
 
@@ -67,7 +70,7 @@ Produces a deterministic patch preview. A blocked plan produces an empty preview
 
 ### `verify`
 
-Applies the preview in a temporary tree and verifies the changed-file allowlist, exact literal edit, finding removal, and source-tree immutability. It does not yet run repository-specific tests or an audio evaluation corpus.
+For a deterministic edit, applies the preview in a temporary tree and verifies the changed-file allowlist, exact literal edit, finding removal, and source-tree immutability. For a blocked analysis-only plan, records unresolved manual work and proves that no automatic transformation occurred. It does not yet run repository-specific tests or behavioral evaluation corpora.
 
 ### Exit codes
 
@@ -83,8 +86,12 @@ Applies the preview in a temporary tree and verifies the changed-file allowlist,
 | Rule | Scope | Tier | Verification |
 | --- | --- | --- | --- |
 | `gpt-4o-mini-transcribe-2025-03-20` to `gpt-4o-mini-transcribe-2025-12-15` | Direct string literal in a recognized OpenAI TypeScript `audio.transcriptions.create` call | A | Exact edit and file-boundary contracts; runtime transcript parity not verified |
+| `openai.assistants.api.assistants` | Reviewed direct or statically aliased TypeScript Assistants methods | C | Manual action; no automatic transformation; original tree unchanged |
+| `openai.assistants.api.threads` | Reviewed Thread, Message, composite Thread/Run, and nested Run methods | C | Manual action; no automatic transformation; original tree unchanged |
+| `openai.assistants.api.runs` | Reviewed composite Thread/Run, Run, and Run Step methods | C | Manual action; no automatic transformation; original tree unchanged |
+| `openai.assistants.feature.*` | Streaming, tools, file search, and code interpreter facets bound to a confirmed deprecated call | C | Manual action; runtime semantics unverified |
 
-The rule intentionally ignores comments, documentation strings, unrelated `model` properties, mutable or reassigned clients, aliases, wrappers, spreads, duplicate or computed properties, environment configuration, and Realtime calls. Unsupported forms produce no finding in this phase; see [limitations](docs/limitations.md).
+The model rule intentionally keeps its narrow direct-call boundary. Assistants rules support selected static aliases and route high-signal wrappers, detached methods, computed access, indirect invocation, and dynamic facets to explicit abstentions. See the public [Assistants feature and pattern matrix](docs/assistants-rule-matrix.md) and [limitations](docs/limitations.md).
 
 ## Architecture
 
@@ -121,18 +128,7 @@ The resolver follows same-language edges until it reaches a destination that is 
 
 ### 2. Deterministic repository analysis
 
-The analyzer is responsible for evidence, not prose. The current rule detects only the direct TypeScript call shape documented above. Future analyzers may cover:
-
-- deprecated model identifiers;
-- OpenAI SDK versions and imports;
-- Assistants, Threads, and Runs usage;
-- reusable prompt objects;
-- streaming and tool-calling patterns;
-- file-search and code-interpreter usage;
-- aliases, wrappers, and dynamic model selection;
-- configuration and environment-based references.
-
-Findings include a stable rule ID, file and line evidence, shutdown date, source references, confidence, and an automation tier.
+The analyzer is responsible for evidence, not prose. It currently confirms one model literal rule and seven atomic Assistants feature classes from reviewed TypeScript call shapes. Findings include a stable rule ID, exact location, minimized evidence, source-backed graph path, confidence, automation tier, feature, pattern, disposition, and stable abstention code. SDK version inference, reusable Prompt detection, cross-file data flow, configuration files, and environment-based references remain future work.
 
 ### 3. Risk-tiered transformation
 
@@ -163,14 +159,14 @@ Compilation is necessary but insufficient. The current verifier proves the patch
 
 | Area | Target level |
 | --- | --- |
-| TypeScript | One direct Transcriptions snapshot rule implemented |
+| TypeScript | Direct Transcriptions snapshot migration plus constrained Assistants analysis implemented |
 | JavaScript | Planned |
 | Python | Analyze, transform, and verify |
 | Deprecated model IDs | Deterministic migration when compatibility is established |
-| Assistants to Responses + Conversations | Deep migration support |
-| Streaming and function calling | Deep migration support |
+| Assistants to Responses + Conversations | Feature-level analysis implemented; transformation and behavioral contracts planned |
+| Streaming and function calling | Assistants-bound detection implemented; transformation planned |
 | Reusable prompt objects | Migration to application-managed configuration |
-| File search and code interpreter | Detect first; transform only with proven contracts |
+| File search and code interpreter | Assistants-bound literal detection implemented; transform only with proven contracts |
 | Agent Builder and Evals | Evidence-backed plan; no speculative rewrite |
 | Custom agent frameworks | Detect known OpenAI surfaces and abstain on unknown orchestration |
 
@@ -180,7 +176,7 @@ Coverage is published per rule. A broad claim such as “supports Assistants mig
 
 ```json
 {
-  "schemaVersion": "2.0.0",
+  "schemaVersion": "3.0.0",
   "id": "206aba3c539f65ed2bd4cb216e800722918d5bd76c2c67f75c4251df0a1738f3",
   "kind": "deprecated-usage",
   "language": "typescript",
@@ -206,6 +202,12 @@ Coverage is published per rule. A broad claim such as “supports Assistants mig
   "confidence": "high",
   "automationTier": "A",
   "reviewRequired": true,
+  "analysis": {
+    "family": "model-snapshot",
+    "feature": "model-snapshot",
+    "pattern": "direct",
+    "disposition": "supported"
+  },
   "remediation": {
     "kind": "replace-string-literal",
     "replacement": "gpt-4o-mini-transcribe-2025-12-15"
@@ -258,7 +260,9 @@ The benchmark suite will treat performance regressions as release blockers.
 
 ## Evaluation
 
-The current deterministic suite contains eight TypeScript fixture classes, five synthetic graph fixtures, and 59 automated tests. It covers schema invariants, byte-exact source locks, graph traversal and conflicts, constrained-path abstention, positive and negative analysis, symbol identity and data-flow boundaries, stale plans, locale-independent canonical reports, atomic abstention, patch preview, temporary-tree verification, and CLI exit codes. This is implementation evidence, not a public accuracy benchmark.
+The current deterministic suite contains 12 TypeScript fixture classes, five checked-in synthetic graph fixtures, and 73 automated tests. It covers schema invariants, byte-exact source locks, graph traversal and conflicts, constrained-path abstention, model and Assistants analysis, symbol identity and alias boundaries, stable unsupported-pattern routing, stale plans, locale-independent canonical reports, atomic abstention, patch preview, temporary-tree verification, and CLI exit codes.
+
+On the authored Phase 3 corpus, supported detection measures 19 true positives, 0 false positives, and 0 false negatives: 100% precision and 100% recall. All 13 labeled high-signal abstentions route exactly, and a separate 34-call method matrix produces the expected 58 atomic feature findings. These are synthetic implementation results, not a public benchmark or a claim about arbitrary repositories.
 
 The public benchmark will include:
 
@@ -281,6 +285,7 @@ Implemented now:
 - canonical JSON;
 - exact file and line findings;
 - source-backed patch plans;
+- source-backed manual migration actions;
 - patch previews;
 - deterministic verification ledgers.
 
@@ -311,6 +316,7 @@ migration-doctor/
 │   └── typescript/
 ├── docs/
 │   ├── architecture.md
+│   ├── assistants-rule-matrix.md
 │   ├── methodology.md
 │   ├── safety.md
 │   └── limitations.md
@@ -326,8 +332,8 @@ The project is quality-gated rather than date-gated:
 
 1. **Done:** establish schemas, source provenance, and a TypeScript vertical slice.
 2. **Done:** prove graph traversal, destination-deprecation checks, conflict records, and Tier C abstention.
-3. **Current:** add Assistants analysis and useful unsupported-pattern abstention without transformation.
-4. Define repository and offline application behavioral contracts.
+3. **Done:** add Assistants analysis and useful unsupported-pattern abstention without transformation.
+4. **Current:** define repository and offline application behavioral contracts.
 5. Add isolated Codex remediation only after those contracts fail against deliberately broken migrations.
 6. Publish the benchmark and performance ledger.
 7. Add Python through the same language-adapter contract.

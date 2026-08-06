@@ -1,6 +1,7 @@
 # Architecture
 
-Migration Doctor currently implements one deterministic TypeScript migration vertical slice.
+Migration Doctor currently implements one deterministic TypeScript model migration and a
+review-only Assistants API analysis slice through the same source-backed pipeline.
 
 ## Dependency direction
 
@@ -17,9 +18,12 @@ core + language-typescript + reporters <- cli
 1. `loadMigrationRegistry` validates every `migration.lock` artifact hash, unique record ID, and complete source reference.
 2. `resolveMigrationPath` follows same-language unconstrained edges, aggregates agreeing sources, and records conflicts, missing destinations, cycles, or unverified SDK constraints without selecting a speculative target.
 3. `scanRepository` invokes language adapters and normalizes findings and graph issues to relative POSIX paths.
-4. `createPatchPlan` independently resolves the locked path, then freezes finding IDs, file hashes, exact offsets, expected text, and the terminal replacement.
+4. `createPatchPlan` independently resolves the locked path, then freezes either exact edits or
+   source-backed manual actions containing the terminal target, reason code, and behavior changes.
 5. `createPatchPreview` rejects stale or overlapping edits and renders a path-stable diff without writing the source repository. A blocked plan is constrained to zero edits and produces an empty, reportable preview.
-6. `verifyPatchPlan` copies the repository to a temporary directory, applies the frozen edits, re-scans the copy, compares file hashes, and confirms the original tree hash is unchanged.
+6. `verifyPatchPlan` verifies blocked plans without applying anything. For ready plans, it copies
+   the repository to a temporary directory, applies frozen edits, re-scans the copy, compares file
+   hashes, and confirms the original tree hash is unchanged.
 7. Reporters serialize the same normalized result as Markdown or canonical JSON.
 
 ## Deterministic output
@@ -30,7 +34,21 @@ Actual duration and cache state are runtime telemetry. The CLI writes them to st
 
 Graph paths preserve deterministic traversal order. Evidence sources and parallel edges at each hop use code-unit ordering rather than the host locale. This keeps issue IDs and canonical reports stable across machines.
 
-Reviewed registry artifacts and `migration.lock` use source schema `1.0.0`. Command reports and their nested findings, graph issues, and plans use report schema `2.0.0`; their version lifecycles are intentionally separate.
+Reviewed registry artifacts and `migration.lock` use source schema `1.0.0`. Command reports and
+their nested findings, graph issues, plans, and manual actions use report schema `3.0.0`; their
+version lifecycles are intentionally separate.
+
+## Analysis-only plans
+
+Every finding records an analysis family, atomic feature, syntax pattern, support disposition, and
+optional stable reason code. Assistants findings are always Tier C with `remediation: none` and
+`requiresCodex: false`.
+
+A blocked plan is atomic: `edits` and `allowedFiles` are empty, while `manualActions` preserve the
+locked graph destination and every declared behavior change. Its verification contracts are
+`manual_migration_resolved`, `no_automatic_transformation`, and
+`original_repository_unchanged`. The first remains false until a future user-reviewed migration is
+supplied, so a detection-only result cannot be mistaken for a completed migration.
 
 ## Stable edits
 
