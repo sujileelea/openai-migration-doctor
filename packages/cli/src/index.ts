@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,11 +18,19 @@ import {
   verifyBehaviorContract,
   verifyPatchPlan,
 } from "@migration-doctor/core";
+import { PythonLanguageAdapter } from "@migration-doctor/language-python";
 import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
-import { renderJson, renderMarkdown } from "@migration-doctor/reporters";
+import { renderHtml, renderJson, renderMarkdown, renderSarif } from "@migration-doctor/reporters";
 import { Command, CommanderError, Option } from "commander";
 
-type OutputFormat = "json" | "markdown";
+type OutputFormat = "html" | "json" | "markdown" | "sarif";
+
+const REPORT_FILES = {
+  html: "migration-report.html",
+  json: "migration-report.json",
+  markdown: "migration-report.md",
+  sarif: "migration-report.sarif",
+} as const satisfies Record<OutputFormat, string>;
 
 export type CliIo = {
   stdout: (value: string) => void;
@@ -42,13 +50,109 @@ function implementationRoot(): string {
 }
 
 function render(report: Report, format: OutputFormat): string {
-  return format === "json" ? renderJson(report) : renderMarkdown(report);
+  switch (format) {
+    case "html":
+      return renderHtml(report);
+    case "json":
+      return renderJson(report);
+    case "markdown":
+      return renderMarkdown(report);
+    case "sarif":
+      return renderSarif(report);
+  }
 }
 
 function formatOption(): Option {
   return new Option("--format <format>", "output format")
-    .choices(["json", "markdown"])
+    .choices(["html", "json", "markdown", "sarif"])
     .default("markdown");
+}
+
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
+}
+
+function hasFileSystemCode(error: unknown, code: string): boolean {
+  return (
+    error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code
+  );
+}
+
+async function saveReportBundle(
+  report: Report,
+  repository: string,
+  outputDirectory: string,
+): Promise<string> {
+  const repositoryRoot = await realpath(path.resolve(repository));
+  const requestedOutput = path.resolve(outputDirectory);
+  const outputName = path.basename(requestedOutput);
+  if (!outputName || outputName === "." || outputName === "..") {
+    throw new ConfigurationError("Report output must name a new directory.");
+  }
+
+  let outputParent: string;
+  try {
+    outputParent = await realpath(path.dirname(requestedOutput));
+    if (!(await stat(outputParent)).isDirectory()) {
+      throw new Error("not a directory");
+    }
+  } catch (error) {
+    throw new ConfigurationError(
+      `Report output parent does not exist or is not a directory: ${path.dirname(requestedOutput)}.`,
+      { cause: error },
+    );
+  }
+
+  const destination = path.join(outputParent, outputName);
+  if (isWithin(repositoryRoot, destination)) {
+    throw new ConfigurationError(
+      "Report output must be outside the scanned repository so scanning remains read-only.",
+    );
+  }
+
+  const temporaryDirectory = await mkdtemp(path.join(outputParent, ".migration-doctor-report-"));
+  let destinationClaimed = false;
+  try {
+    for (const format of Object.keys(REPORT_FILES) as OutputFormat[]) {
+      await writeFile(path.join(temporaryDirectory, REPORT_FILES[format]), render(report, format), {
+        encoding: "utf8",
+        flag: "wx",
+        mode: 0o600,
+      });
+    }
+
+    try {
+      await mkdir(destination, { mode: 0o700 });
+      destinationClaimed = true;
+    } catch (error) {
+      if (hasFileSystemCode(error, "EEXIST")) {
+        throw new ConfigurationError(`Report output already exists: ${destination}.`);
+      }
+      throw error;
+    }
+
+    for (const file of Object.values(REPORT_FILES)) {
+      await rename(path.join(temporaryDirectory, file), path.join(destination, file));
+    }
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  } catch (error) {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+    if (destinationClaimed) {
+      await rm(destination, { recursive: true, force: true });
+    }
+    if (error instanceof ConfigurationError) {
+      throw error;
+    }
+    throw new ConfigurationError(`Unable to save report bundle at ${destination}.`, {
+      cause: error,
+    });
+  }
+
+  return destination;
 }
 
 function hasInvalidGraph(scan: ScanResult): boolean {
@@ -101,7 +205,7 @@ async function readBehaviorObservation(inputPath: string, label: string) {
 
 async function scanTarget(repository: string) {
   const registry = await loadMigrationRegistry(implementationRoot());
-  const adapters = [new TypeScriptLanguageAdapter()];
+  const adapters = [new TypeScriptLanguageAdapter(), new PythonLanguageAdapter()];
   const scan = await scanRepository({
     repositoryRoot: path.resolve(repository),
     registry,
@@ -146,6 +250,23 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
       await runMeasured(async () => {
         const { scan } = await scanTarget(repository);
         commandExitCode = scanExitCode(scan);
+        return scan;
+      }, options.format);
+    });
+
+  program
+    .command("report")
+    .description("scan once and save Markdown, JSON, SARIF, and static HTML outside the repository")
+    .argument("[repository]", "repository to scan", ".")
+    .requiredOption("--output <directory>", "new report bundle directory outside the repository")
+    .addOption(formatOption())
+    .action(async (repository: string, options: { format: OutputFormat; output: string }) => {
+      commandExecuted = true;
+      await runMeasured(async () => {
+        const { scan } = await scanTarget(repository);
+        commandExitCode = scanExitCode(scan);
+        const destination = await saveReportBundle(scan, repository, options.output);
+        io.stderr(`[report] directory=${destination}\n`);
         return scan;
       }, options.format);
     });

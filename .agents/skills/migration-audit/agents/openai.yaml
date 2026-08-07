@@ -1,0 +1,4 @@
+interface:
+  display_name: "Migration Audit"
+  short_description: "Audit OpenAI API migrations with saved evidence"
+  default_prompt: "Use $migration-audit to audit this repository for supported OpenAI API migrations."

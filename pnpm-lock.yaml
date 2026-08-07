@@ -50,6 +50,9 @@ importers:
       '@migration-doctor/core':
         specifier: workspace:*
         version: link:../core
+      '@migration-doctor/language-python':
+        specifier: workspace:*
+        version: link:../language-python
       '@migration-doctor/language-typescript':
         specifier: workspace:*
         version: link:../language-typescript

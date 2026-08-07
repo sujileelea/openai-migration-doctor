@@ -13,7 +13,7 @@ import {
   verifyBehaviorContract,
 } from "@migration-doctor/core";
 import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
-import { renderJson, renderMarkdown } from "@migration-doctor/reporters";
+import { renderHtml, renderJson, renderMarkdown, renderSarif } from "@migration-doctor/reporters";
 import { beforeAll, describe, expect, it } from "vitest";
 import { fixturePath, PROJECT_ROOT } from "./helpers.js";
 
@@ -113,6 +113,117 @@ describe("reporters", () => {
     expect(scanMarkdown).toContain("2027-01-20");
     expect(patchMarkdown).toContain("--- a/src/transcribe.ts");
     expect(patchMarkdown).not.toContain(PROJECT_ROOT);
+  });
+
+  it("renders deterministic SARIF with stable metadata and relative locations", async () => {
+    const scan = await scanRepository({
+      repositoryRoot: fixturePath("direct-model-literal"),
+      registry,
+      adapters: [new TypeScriptLanguageAdapter()],
+    });
+
+    const first = renderSarif(scan);
+    const second = renderSarif(scan);
+    const sarif = JSON.parse(first) as {
+      $schema: string;
+      version: string;
+      runs: Array<{
+        tool: { driver: { semanticVersion: string; rules: Array<{ helpUri?: string }> } };
+        results: Array<{
+          locations: Array<{
+            physicalLocation: { artifactLocation: { uri: string; uriBaseId: string } };
+          }>;
+        }>;
+      }>;
+    };
+
+    expect(first).toBe(second);
+    expect(sarif.$schema).toBe(
+      "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+    );
+    expect(sarif.version).toBe("2.1.0");
+    expect(sarif.runs[0]?.tool.driver.semanticVersion).toBe("0.0.0");
+    expect(sarif.runs[0]?.tool.driver.rules[0]?.helpUri).toBe(
+      "https://developers.openai.com/api/docs/deprecations",
+    );
+    expect(sarif.runs[0]?.results[0]).toMatchObject({
+      locations: [
+        {
+          physicalLocation: {
+            artifactLocation: { uri: "src/transcribe.ts", uriBaseId: "%SRCROOT%" },
+          },
+        },
+      ],
+    });
+    expect(sarif.runs[0]?.results[0]).not.toHaveProperty("partialFingerprints");
+    expect(first).not.toContain(PROJECT_ROOT);
+  });
+
+  it("does not publish a location-derived partial fingerprint when a finding shifts lines", async () => {
+    const scan = await scanRepository({
+      repositoryRoot: fixturePath("direct-model-literal"),
+      registry,
+      adapters: [new TypeScriptLanguageAdapter()],
+    });
+    const finding = scan.findings[0];
+    expect(finding).toBeDefined();
+    if (!finding) {
+      return;
+    }
+
+    const shifted = {
+      ...scan,
+      findings: [
+        {
+          ...finding,
+          id: "f".repeat(64),
+          location: {
+            ...finding.location,
+            line: finding.location.line + 1,
+            startOffset: finding.location.startOffset + 1,
+            endOffset: finding.location.endOffset + 1,
+          },
+        },
+      ],
+    };
+    const originalResult = JSON.parse(renderSarif(scan)).runs[0].results[0] as Record<
+      string,
+      unknown
+    >;
+    const shiftedResult = JSON.parse(renderSarif(shifted)).runs[0].results[0] as Record<
+      string,
+      unknown
+    >;
+
+    expect(originalResult).not.toHaveProperty("partialFingerprints");
+    expect(shiftedResult).not.toHaveProperty("partialFingerprints");
+  });
+
+  it("renders a script-free static HTML report and escapes report content", async () => {
+    const scan = await scanRepository({
+      repositoryRoot: fixturePath("direct-model-literal"),
+      registry,
+      adapters: [new TypeScriptLanguageAdapter()],
+    });
+    const finding = scan.findings[0];
+    expect(finding).toBeDefined();
+    if (!finding) {
+      return;
+    }
+
+    const html = renderHtml({
+      ...scan,
+      findings: [{ ...finding, evidence: '<script>alert("unsafe")</script>' }],
+    });
+
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain("Content-Security-Policy");
+    expect(html).toContain("<table>");
+    expect(html).toContain('href="https://developers.openai.com/api/docs/deprecations"');
+    expect(html).toContain("&lt;script&gt;alert(&quot;unsafe&quot;)&lt;/script&gt;");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain(PROJECT_ROOT);
+    expect(html.endsWith("\n")).toBe(true);
   });
 
   it("renders structured analysis and source-backed manual actions in Markdown", async () => {

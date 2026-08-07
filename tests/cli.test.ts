@@ -1,5 +1,14 @@
-import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { spawn, spawnSync } from "node:child_process";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { MigrationEdge } from "@migration-doctor/core";
@@ -29,6 +38,23 @@ function runCli(args: string[], environment: NodeJS.ProcessEnv = {}) {
     cwd: PROJECT_ROOT,
     encoding: "utf8",
     env: { ...process.env, ...environment },
+  });
+}
+
+function runCliAsync(args: string[]): Promise<{ status: number | null; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [CLI_PATH, ...args], {
+      cwd: PROJECT_ROOT,
+      env: process.env,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("close", (status) => resolve({ status, stderr }));
   });
 }
 
@@ -165,6 +191,90 @@ describe("CLI exit-code contract", () => {
     });
     expect(first.stdout).toBe(second.stdout);
     expect(first.stderr).toContain("[telemetry]");
+  });
+
+  it("saves one scan as a complete Markdown, JSON, SARIF, and HTML report bundle", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "migration-doctor-report-parent-"));
+    temporaryDirectories.push(parent);
+    const output = path.join(parent, "report");
+    const result = runCli([
+      "report",
+      fixturePath("direct-model-literal"),
+      "--output",
+      output,
+      "--format",
+      "json",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`[report] directory=${await realpath(output)}`);
+    expect(await readdir(output)).toEqual([
+      "migration-report.html",
+      "migration-report.json",
+      "migration-report.md",
+      "migration-report.sarif",
+    ]);
+
+    const [json, markdown, sarif, html] = await Promise.all([
+      readFile(path.join(output, "migration-report.json"), "utf8"),
+      readFile(path.join(output, "migration-report.md"), "utf8"),
+      readFile(path.join(output, "migration-report.sarif"), "utf8"),
+      readFile(path.join(output, "migration-report.html"), "utf8"),
+    ]);
+    expect(json).toBe(result.stdout);
+    expect(JSON.parse(json)).toMatchObject({ kind: "scan", summary: { blocking: 1 } });
+    expect(markdown).toContain("# Migration Doctor Scan");
+    expect(JSON.parse(sarif)).toMatchObject({ version: "2.1.0", runs: [{ results: [{}] }] });
+    expect(html).toContain("<!doctype html>");
+  });
+
+  it("refuses to save a report inside the scanned repository", () => {
+    const repository = fixturePath("comment-only");
+    const result = runCli(["report", repository, "--output", path.join(repository, "report")]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Report output must be outside the scanned repository");
+  });
+
+  it("refuses to replace an existing report directory", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "migration-doctor-existing-report-"));
+    temporaryDirectories.push(parent);
+    const output = path.join(parent, "report");
+    await mkdir(output);
+
+    const result = runCli(["report", fixturePath("comment-only"), "--output", output]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Report output already exists");
+  });
+
+  it("allows only one concurrent publisher to claim a new report directory", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "migration-doctor-report-race-"));
+    temporaryDirectories.push(parent);
+    const output = path.join(parent, "report");
+    const args = [
+      "report",
+      fixturePath("direct-model-literal"),
+      "--output",
+      output,
+      "--format",
+      "json",
+    ];
+
+    const results = await Promise.all([runCliAsync(args), runCliAsync(args)]);
+
+    expect(results.map(({ status }) => status).sort()).toEqual([1, 2]);
+    expect(results.some(({ stderr }) => stderr.includes("Report output already exists"))).toBe(
+      true,
+    );
+    expect(await readdir(output)).toEqual([
+      "migration-report.html",
+      "migration-report.json",
+      "migration-report.md",
+      "migration-report.sarif",
+    ]);
   });
 
   it("keeps Assistants analysis review-only across every command", () => {

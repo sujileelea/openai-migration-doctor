@@ -1,0 +1,52 @@
+name: Migration Doctor
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run Migration Doctor
+        id: migration-doctor
+        uses: ./
+        with:
+          path: packages
+
+      - name: Upload SARIF
+        if: >-
+          always() && steps.migration-doctor.outputs.sarif-path != '' &&
+          (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        with:
+          sarif_file: ${{ steps.migration-doctor.outputs.sarif-path }}
+
+      - name: Upload report bundle
+        if: always() && steps.migration-doctor.outputs.report-directory != ''
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: migration-doctor-report
+          path: ${{ steps.migration-doctor.outputs.report-directory }}
+          if-no-files-found: error
+
+      - name: Enforce migration findings
+        if: always() && steps.migration-doctor.outputs.exit-code != ''
+        env:
+          MIGRATION_DOCTOR_EXIT_CODE: ${{ steps.migration-doctor.outputs.exit-code }}
+        run: exit "$MIGRATION_DOCTOR_EXIT_CODE"

@@ -8,8 +8,12 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b --pretty false"
+  },
   "dependencies": {
     "@migration-doctor/core": "workspace:*",
+    "@migration-doctor/language-python": "workspace:*",
     "@migration-doctor/language-typescript": "workspace:*",
     "@migration-doctor/reporters": "workspace:*",
     "commander": "14.0.0"
