@@ -350,6 +350,42 @@ describe("developer surfaces", () => {
     expect(repositoryFiles).not.toMatch(/(?:^|\/)sarif-schema-2\.1\.0\.json$/mu);
   });
 
+  it("publishes canonical Apache-2.0 licensing and an explicit provenance boundary", async () => {
+    const manifestPaths = [
+      "package.json",
+      "benchmarks/package.json",
+      "packages/cli/package.json",
+      "packages/codex-adapter/package.json",
+      "packages/core/package.json",
+      "packages/language-python/package.json",
+      "packages/language-typescript/package.json",
+      "packages/reporters/package.json",
+    ];
+    const [license, notice, readme, provenance, pythonProject, ...manifests] = await Promise.all([
+      projectFile("LICENSE"),
+      projectFile("NOTICE"),
+      projectFile("README.md"),
+      projectFile("docs/provenance.md"),
+      projectFile("packages/language-python/pyproject.toml"),
+      ...manifestPaths.map(async (manifestPath) => projectFile(manifestPath)),
+    ]);
+
+    expect(createHash("sha256").update(license).digest("hex")).toBe(
+      "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    );
+    expect(notice).toBe("Migration Doctor for OpenAI APIs\nCopyright 2026 Suji Lee\n");
+    expect(readme).toContain("Apache License, Version 2.0");
+    expect(readme).toContain("[provenance policy](docs/provenance.md)");
+    expect(readme).not.toMatch(/License selection\s+is\s+pending/u);
+    expect(pythonProject).toMatch(/^license = "Apache-2\.0"$/mu);
+    for (const manifest of manifests) {
+      expect(JSON.parse(manifest)).toMatchObject({ license: "Apache-2.0" });
+    }
+    expect(provenance).toContain("A URL or public availability alone is not permission to copy.");
+    expect(provenance).toContain("Package-manager dependencies are not vendored.");
+    expect(provenance).toContain("Raw page bodies stay outside the repository.");
+  });
+
   it("runs the action against Python without changing target bytes and preserves status 4 outputs", async () => {
     await expect(lstat(path.join(cyclicActionSource, ".git"))).rejects.toMatchObject({
       code: "ENOENT",

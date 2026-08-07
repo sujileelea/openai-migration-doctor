@@ -19,6 +19,9 @@ corepack pnpm validate:sarif
 ## Invariants
 
 - Keep dependencies inward: `core` must not import CLI, reporters, language adapters, or Codex.
+- Preserve the Apache-2.0 `LICENSE`, project `NOTICE`, package license metadata, and
+  `docs/provenance.md`. Do not copy external material without the provenance record and notices its
+  upstream terms require.
 - Detection is local, deterministic, read-only, and network-free.
 - Keep the Python worker on the exact checked-in `uv.lock`, require LibCST 1.9.0 at runtime, and
   preserve its isolated interpreter flags, sanitized environment, absolute executable and worker

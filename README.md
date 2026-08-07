@@ -8,10 +8,10 @@ before/after behavioral contract verification, saved report bundles, and an opt-
 adapter boundary. No production rule or CLI command routes a plan to Codex, Assistants
 transformation is not implemented, and repository runtime or live-API parity is not evaluated.
 
-Migration Doctor is an **unofficial, publicly developed pre-alpha developer tool**. License
-selection and the provenance policy are still pending, so source availability is not an
-open-source license grant. It is not an OpenAI product and is not affiliated with or endorsed by
-OpenAI.
+Migration Doctor is an **unofficial, publicly developed pre-alpha developer tool** licensed under
+the Apache License, Version 2.0. It is not an OpenAI product and is not affiliated with or endorsed
+by OpenAI. External material is governed by the repository's
+[provenance policy](docs/provenance.md).
 
 ## Why this exists
 
@@ -486,15 +486,19 @@ migration-doctor/
 │   ├── architecture.md
 │   ├── assistants-rule-matrix.md
 │   ├── methodology.md
+│   ├── provenance.md
 │   ├── rule-authoring.md
 │   ├── safety.md
+│   ├── sarif-validation.md
 │   └── limitations.md
 ├── tests/
 ├── .agents/skills/migration-audit/
 ├── .github/workflows/migration-doctor.yml
 ├── action.yml
 ├── AGENTS.md
+├── LICENSE
 ├── migration.lock
+├── NOTICE
 └── README.md
 ```
 
@@ -534,6 +538,13 @@ Follow the [rule-authoring guide](docs/rule-authoring.md). Every migration rule 
 5. benchmark coverage;
 6. a documented abstention boundary.
 
+Unless explicitly stated otherwise, intentional contributions are submitted under Apache-2.0 as
+described by Section 5 of the license. Contributors must have the right to submit their work and
+must disclose external material under the [provenance policy](docs/provenance.md).
+
 ## License
 
-License selection is pending. Do not copy external fixtures or code into the repository until a compatible project license and provenance policy are established.
+Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE) for project
+attribution and [the provenance policy](docs/provenance.md) before introducing external code,
+fixtures, documentation, schemas, or generated material. Dependencies remain under their own
+licenses.

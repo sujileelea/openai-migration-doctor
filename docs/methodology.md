@@ -12,9 +12,10 @@ Each source record stores the SHA-256 of the exact bytes returned by the officia
 `migration.lock` separately pins the checked-in source-record and migration-edge
 files. A changed or missing local artifact fails before repository analysis.
 
-Raw documentation bodies are not committed while the project's license and
-provenance policy remain pending. While upstream content is unchanged, reviewers
-can reproduce the recorded raw hashes with:
+Raw documentation bodies are not committed. The project license covers project-authored material,
+not upstream documentation bodies; the [provenance policy](provenance.md) keeps source evidence to
+reviewed claims, canonical URLs, retrieval times, and content hashes. While upstream content is
+unchanged, reviewers can reproduce the recorded raw hashes with:
 
 ```bash
 curl -fsSL https://developers.openai.com/api/docs/deprecations.md | shasum -a 256

@@ -10,8 +10,9 @@ This is an explicit network gate. It fetches the schema from the stable OASIS 2.
 the response to 1 MiB, and requires SHA-256
 `ad6db49878699b091f3eeb765b6e29e92a34bad4da88664d000c923b549c3a25` before parsing it. The URL,
 hash, version, and byte limit are recorded in
-[`sarif-schema-lock.json`](../config/sarif-schema-lock.json). The schema body is not vendored while
-the project license and provenance policy remain pending.
+[`sarif-schema-lock.json`](../config/sarif-schema-lock.json). The schema body is not vendored; the
+[provenance policy](provenance.md) keeps the external validation source at the official URL and
+hash boundary.
 
 After the hash check, the command generates SARIF through the built CLI from the labeled
 TypeScript fixture and validates the complete document with exact-pinned Ajv and `ajv-formats`

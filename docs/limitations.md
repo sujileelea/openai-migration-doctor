@@ -179,7 +179,11 @@ claim for arbitrary repositories. See the
 ## Distribution
 
 - The package is not published.
-- License selection is pending.
+- Project-authored source, fixtures, and documentation are licensed under Apache-2.0. Dependencies
+  remain under their own licenses, and external material is subject to the
+  [provenance policy](provenance.md).
+- Every workspace package remains private. A future registry release must verify that its packed
+  artifact includes the project license and NOTICE plus every notice required by bundled material.
 - The composite GitHub Action and checked-in `migration-audit` Codex skill build from committed
   source in temporary directories; they are not a package-registry distribution.
 - Optional plugin packaging is not implemented because the current skill and action cover the
