@@ -1,6 +1,6 @@
 {
   "name": "migration-doctor",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -23,6 +23,10 @@
     "python:check": "uv run --project packages/language-python --locked python -m compileall -q packages/language-python/python",
     "measure:python": "node packages/language-python/scripts/measure-performance.mjs",
     "validate:sarif": "tsc -b --pretty false && node scripts/validate-sarif.mjs",
+    "source:check": "node scripts/check-source-drift.mjs --network",
+    "public:evaluate": "node scripts/evaluate-public-repositories.mjs",
+    "sdk:compatibility:node": "corepack pnpm --dir integration/sdk-compatibility/node --ignore-workspace install --frozen-lockfile --ignore-scripts && corepack pnpm --dir integration/sdk-compatibility/node --ignore-workspace test",
+    "sdk:compatibility:python": "uv run --project integration/sdk-compatibility/python --locked python integration/sdk-compatibility/python/run.py",
     "doctor": "node packages/cli/dist/index.js"
   },
   "devDependencies": {

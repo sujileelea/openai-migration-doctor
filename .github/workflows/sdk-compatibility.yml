@@ -1,0 +1,81 @@
+name: SDK compatibility evidence
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 4 * * 1"
+  pull_request:
+    paths:
+      - ".github/workflows/sdk-compatibility.yml"
+      - "integration/sdk-compatibility/**"
+      - "packages/language-python/**"
+      - "packages/language-typescript/**"
+      - "data/migrations/**"
+      - "docs/assistants-rule-matrix.md"
+
+permissions:
+  contents: read
+
+jobs:
+  node-sdk:
+    name: Node ${{ matrix.node }} (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.15.0 --activate
+      - run: pnpm --dir integration/sdk-compatibility/node --ignore-workspace install --frozen-lockfile --ignore-scripts
+      - name: Verify Node SDK request and write evidence
+        env:
+          SDK_COMPATIBILITY_OUTPUT: ${{ runner.temp }}/sdk-node-${{ matrix.node }}-${{ matrix.os }}.json
+        run: pnpm --dir integration/sdk-compatibility/node --ignore-workspace test
+      - name: Upload Node SDK evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sdk-node-${{ matrix.node }}-${{ matrix.os }}
+          path: ${{ runner.temp }}/sdk-node-${{ matrix.node }}-${{ matrix.os }}.json
+          if-no-files-found: error
+
+  python-sdk:
+    name: Python ${{ matrix.python }} (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.9.18"
+          enable-cache: true
+      - run: uv sync --project integration/sdk-compatibility/python --locked
+      - name: Verify Python SDK request and Assistants surface
+        env:
+          SDK_COMPATIBILITY_OUTPUT: ${{ runner.temp }}/sdk-python-${{ matrix.python }}-${{ matrix.os }}.json
+        run: uv run --project integration/sdk-compatibility/python --locked python integration/sdk-compatibility/python/run.py
+      - name: Upload Python SDK evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sdk-python-${{ matrix.python }}-${{ matrix.os }}
+          path: ${{ runner.temp }}/sdk-python-${{ matrix.python }}-${{ matrix.os }}.json
+          if-no-files-found: error
