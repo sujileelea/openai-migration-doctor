@@ -1,16 +1,21 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
   realpath,
+  rename,
   rm,
+  stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import type { MigrationEdge } from "@migration-doctor/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -56,6 +61,41 @@ function runCliAsync(args: string[]): Promise<{ status: number | null; stderr: s
     child.once("error", reject);
     child.once("close", (status) => resolve({ status, stderr }));
   });
+}
+
+async function waitForFilesystemState<T>(
+  probe: () => Promise<T | undefined>,
+  label: string,
+  timeoutMs = 15_000,
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const value = await probe();
+      if (value !== undefined) {
+        return value;
+      }
+    } catch {
+      // Publication paths are expected to appear and move while this probe is active.
+    }
+    await delay(1);
+  }
+  throw new Error(`Timed out waiting for ${label}.`);
+}
+
+async function createLargeReportRepository(): Promise<string> {
+  const repository = await mkdtemp(path.join(tmpdir(), "migration-doctor-publication-race-"));
+  temporaryDirectories.push(repository);
+  const calls = Array.from(
+    { length: 5_000 },
+    (_, index) =>
+      `client.audio.transcriptions.create({ model: "gpt-4o-mini-transcribe-2025-03-20", file: audio${index} });`,
+  );
+  await writeFile(
+    path.join(repository, "transcribe.ts"),
+    ['import OpenAI from "openai";', "const client = new OpenAI();", ...calls, ""].join("\n"),
+  );
+  return repository;
 }
 
 function runBehaviorVerification(candidate: string) {
@@ -214,6 +254,7 @@ describe("CLI exit-code contract", () => {
       "migration-report.md",
       "migration-report.sarif",
     ]);
+    expect((await stat(output)).mode & 0o777).toBe(0o700);
 
     const [json, markdown, sarif, html] = await Promise.all([
       readFile(path.join(output, "migration-report.json"), "utf8"),
@@ -226,6 +267,14 @@ describe("CLI exit-code contract", () => {
     expect(markdown).toContain("# Migration Doctor Scan");
     expect(JSON.parse(sarif)).toMatchObject({ version: "2.1.0", runs: [{ results: [{}] }] });
     expect(html).toContain("<!doctype html>");
+    for (const file of [
+      "migration-report.html",
+      "migration-report.json",
+      "migration-report.md",
+      "migration-report.sarif",
+    ]) {
+      expect((await stat(path.join(output, file))).mode & 0o777).toBe(0o600);
+    }
   });
 
   it("refuses to save a report inside the scanned repository", () => {
@@ -248,6 +297,24 @@ describe("CLI exit-code contract", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("Report output already exists");
+  });
+
+  it("refuses to replace an existing report symlink", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "migration-doctor-existing-symlink-"));
+    temporaryDirectories.push(parent);
+    const attackerDirectory = path.join(parent, "attacker-directory");
+    const output = path.join(parent, "report");
+    const sentinel = path.join(attackerDirectory, "sentinel.txt");
+    await mkdir(attackerDirectory);
+    await writeFile(sentinel, "symlink-target-must-survive\n");
+    await symlink(attackerDirectory, output, "dir");
+
+    const result = runCli(["report", fixturePath("comment-only"), "--output", output]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("Report output already exists");
+    expect((await lstat(output)).isSymbolicLink()).toBe(true);
+    expect(await readFile(sentinel, "utf8")).toBe("symlink-target-must-survive\n");
   });
 
   it("allows only one concurrent publisher to claim a new report directory", async () => {
@@ -276,6 +343,92 @@ describe("CLI exit-code contract", () => {
       "migration-report.sarif",
     ]);
   });
+
+  it("fails closed when the resolved output parent becomes a symlink during publication", async () => {
+    const container = await mkdtemp(path.join(tmpdir(), "migration-doctor-parent-replacement-"));
+    temporaryDirectories.push(container);
+    const outputParent = path.join(container, "output-parent");
+    const displacedParent = path.join(container, "displaced-parent");
+    const attackerParent = path.join(container, "attacker-parent");
+    const output = path.join(outputParent, "report");
+    const sentinel = path.join(outputParent, "replacement-sentinel.txt");
+    const repository = await createLargeReportRepository();
+    await mkdir(outputParent);
+
+    const completion = runCliAsync(["report", repository, "--output", output, "--format", "json"]);
+    await waitForFilesystemState(async () => {
+      const entries = await readdir(output);
+      return entries.length > 0 ? true : undefined;
+    }, "first published report file");
+
+    await rename(outputParent, displacedParent);
+    await mkdir(attackerParent);
+    await symlink(attackerParent, outputParent, "dir");
+    await writeFile(sentinel, "replacement-parent-must-survive\n");
+    const result = await completion;
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("INVALID_CONFIGURATION");
+    expect(await readFile(sentinel, "utf8")).toBe("replacement-parent-must-survive\n");
+  }, 30_000);
+
+  it("does not adopt a replacement inode for a published report file", async () => {
+    const container = await mkdtemp(
+      path.join(tmpdir(), "migration-doctor-published-file-replacement-"),
+    );
+    temporaryDirectories.push(container);
+    const outputParent = path.join(container, "output-parent");
+    const output = path.join(outputParent, "report");
+    const publishedFile = path.join(output, "migration-report.html");
+    const displacedFile = path.join(output, "owned-report.html");
+    const repository = await createLargeReportRepository();
+    await mkdir(outputParent);
+
+    const completion = runCliAsync(["report", repository, "--output", output, "--format", "json"]);
+    await waitForFilesystemState(async () => {
+      try {
+        return (await stat(publishedFile)).isFile() ? true : undefined;
+      } catch {
+        return undefined;
+      }
+    }, "published HTML report file");
+
+    await rename(publishedFile, displacedFile);
+    await writeFile(publishedFile, "replacement-published-file-must-survive\n", { mode: 0o600 });
+    const result = await completion;
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("INVALID_CONFIGURATION");
+    expect(await readFile(publishedFile, "utf8")).toBe("replacement-published-file-must-survive\n");
+  }, 30_000);
+
+  it("does not delete a replacement for the claimed destination after publication starts", async () => {
+    const container = await mkdtemp(
+      path.join(tmpdir(), "migration-doctor-destination-replacement-"),
+    );
+    temporaryDirectories.push(container);
+    const outputParent = path.join(container, "output-parent");
+    const output = path.join(outputParent, "report");
+    const displacedOutput = path.join(outputParent, "displaced-report");
+    const sentinel = path.join(output, "replacement-sentinel.txt");
+    const repository = await createLargeReportRepository();
+    await mkdir(outputParent);
+
+    const completion = runCliAsync(["report", repository, "--output", output, "--format", "json"]);
+    await waitForFilesystemState(async () => {
+      const entries = await readdir(output);
+      return entries.length > 0 ? true : undefined;
+    }, "first published report file");
+
+    await rename(output, displacedOutput);
+    await mkdir(output, { mode: 0o700 });
+    await writeFile(sentinel, "replacement-destination-must-survive\n", { mode: 0o600 });
+    const result = await completion;
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("INVALID_CONFIGURATION");
+    expect(await readFile(sentinel, "utf8")).toBe("replacement-destination-must-survive\n");
+  }, 30_000);
 
   it("keeps Assistants analysis review-only across every command", () => {
     const repository = fixturePath("assistants-direct");
