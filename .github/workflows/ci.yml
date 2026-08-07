@@ -23,3 +23,12 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - name: Run Phase 6 regression benchmark
+        run: pnpm benchmark --output "$RUNNER_TEMP/phase6-benchmark.json"
+      - name: Upload Phase 6 benchmark ledger
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: phase6-benchmark
+          path: ${{ runner.temp }}/phase6-benchmark.json
+          if-no-files-found: ignore

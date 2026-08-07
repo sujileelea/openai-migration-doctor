@@ -1,0 +1,10 @@
+{
+  "name": "@migration-doctor/benchmarks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@migration-doctor/core": "workspace:*",
+    "@migration-doctor/language-typescript": "workspace:*"
+  }
+}

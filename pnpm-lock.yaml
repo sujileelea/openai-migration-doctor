@@ -33,6 +33,15 @@ importers:
         specifier: 3.2.4
         version: 3.2.4(@types/node@24.3.0)
 
+  benchmarks:
+    dependencies:
+      '@migration-doctor/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@migration-doctor/language-typescript':
+        specifier: workspace:*
+        version: link:../packages/language-typescript
+
   packages/cli:
     dependencies:
       '@migration-doctor/core':

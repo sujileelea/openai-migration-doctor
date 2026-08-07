@@ -2,7 +2,9 @@ import { readFile } from "node:fs/promises";
 import {
   type AdapterScanResult,
   AnalysisError,
+  canonicalJson,
   type Finding,
+  FindingSchema,
   type LanguageAdapter,
   listRepositoryFiles,
   type MigrationResolution,
@@ -22,10 +24,24 @@ import {
   createBoundSource,
   propertyChain,
 } from "./bindings.js";
+import type { TypeScriptAnalysisCache } from "./cache.js";
 
 const SOURCE_MODEL = "gpt-4o-mini-transcribe-2025-03-20";
 const RULE_ID = "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20";
 const TYPESCRIPT_EXTENSIONS = [".cts", ".mts", ".ts", ".tsx"] as const;
+const ANALYSIS_CACHE_VERSION = "typescript-analysis-v1";
+
+export type TypeScriptScanTelemetry = {
+  cacheEnabled: boolean;
+  files: number;
+  cacheHits: number;
+  cacheMisses: number;
+  parsedFiles: number;
+};
+
+export type TypeScriptLanguageAdapterOptions = {
+  cache?: TypeScriptAnalysisCache;
+};
 
 function findModelLiteral(call: ts.CallExpression, expectedModel: string): ts.StringLiteral | null {
   const request = call.arguments[0];
@@ -283,6 +299,22 @@ function scanSource(
 export class TypeScriptLanguageAdapter implements LanguageAdapter {
   readonly id = "typescript";
   readonly extensions = TYPESCRIPT_EXTENSIONS;
+  readonly #cache: TypeScriptAnalysisCache | undefined;
+  #lastScanTelemetry: TypeScriptScanTelemetry = {
+    cacheEnabled: false,
+    files: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    parsedFiles: 0,
+  };
+
+  constructor(options: TypeScriptLanguageAdapterOptions = {}) {
+    this.#cache = options.cache;
+  }
+
+  get lastScanTelemetry(): Readonly<TypeScriptScanTelemetry> {
+    return { ...this.#lastScanTelemetry };
+  }
 
   async scan(request: Parameters<LanguageAdapter["scan"]>[0]): Promise<AdapterScanResult> {
     const modelResolution = resolveMigrationPath(
@@ -303,67 +335,104 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
     } catch (error) {
       throw new AnalysisError("Unable to enumerate candidate TypeScript files.", { cause: error });
     }
-    const findingGroups = await Promise.all(
-      files.map(async (relativeFile) => {
-        let content: string;
-        try {
-          content = await readFile(
-            resolveRepositoryFile(request.repositoryRoot, relativeFile),
-            "utf8",
-          );
-        } catch (error) {
-          throw new AnalysisError(`Unable to read candidate TypeScript file ${relativeFile}.`, {
-            cause: error,
-          });
-        }
-        const hasModelCandidate = content.includes(SOURCE_MODEL);
-        const hasAssistantsCandidate =
-          content.includes("openai") &&
-          content.includes("beta") &&
-          (content.includes("assistants") || content.includes("threads"));
-        if (!hasModelCandidate && !hasAssistantsCandidate) {
-          return [];
-        }
-        const bound = createBoundSource(relativeFile, content);
-        const parseErrors = bound.diagnostics.filter(
-          (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
-        );
-        if (parseErrors.length > 0) {
-          const message = parseErrors.map(parseDiagnosticMessage).join("; ");
-          throw new AnalysisError(`Unable to parse ${relativeFile}: ${message}`);
-        }
-        const constructors = collectOpenAiConstructors(bound.sourceFile, bound.checker);
-        const openAiTypes = collectOpenAiTypeSymbols(bound.sourceFile, bound.checker);
-        const clients = collectOpenAiClients(bound.sourceFile, bound.checker, constructors);
-        const findings: Finding[] = [];
-        if (hasModelCandidate) {
-          if (modelResolution.status === "unmapped") {
-            throw new AnalysisError(
-              `No locked TypeScript migration edge exists for ${SOURCE_MODEL}.`,
+    const telemetry: TypeScriptScanTelemetry = {
+      cacheEnabled: this.#cache !== undefined,
+      files: files.length,
+      cacheHits: 0,
+      cacheMisses: 0,
+      parsedFiles: 0,
+    };
+    const migrationEdgesHash =
+      this.#cache === undefined ? "" : sha256(canonicalJson(request.migrationEdges));
+    let findingGroups: Finding[][];
+    try {
+      findingGroups = await Promise.all(
+        files.map(async (relativeFile) => {
+          let content: string;
+          try {
+            content = await readFile(
+              resolveRepositoryFile(request.repositoryRoot, relativeFile),
+              "utf8",
             );
+          } catch (error) {
+            throw new AnalysisError(`Unable to read candidate TypeScript file ${relativeFile}.`, {
+              cause: error,
+            });
           }
-          findings.push(...scanSource(relativeFile, content, modelResolution, bound));
-        }
-        if (hasAssistantsCandidate && (clients.size > 0 || openAiTypes.size > 0)) {
-          const assistants = scanAssistantsSource(
-            relativeFile,
-            content,
-            bound.sourceFile,
-            bound.checker,
-            clients,
-            openAiTypes,
-            assistantsResolution.status === "unmapped" ? undefined : assistantsResolution,
+          const cacheKey =
+            this.#cache === undefined
+              ? undefined
+              : sha256(
+                  [ANALYSIS_CACHE_VERSION, migrationEdgesHash, relativeFile, sha256(content)].join(
+                    "\u0000",
+                  ),
+                );
+          if (cacheKey !== undefined && this.#cache !== undefined) {
+            const cached = await this.#cache.get(cacheKey);
+            if (cached !== undefined) {
+              telemetry.cacheHits += 1;
+              return cached.map((finding) => FindingSchema.parse(finding));
+            }
+            telemetry.cacheMisses += 1;
+          }
+          const hasModelCandidate = content.includes(SOURCE_MODEL);
+          const hasAssistantsCandidate =
+            content.includes("openai") &&
+            content.includes("beta") &&
+            (content.includes("assistants") || content.includes("threads"));
+          if (!hasModelCandidate && !hasAssistantsCandidate) {
+            if (cacheKey !== undefined && this.#cache !== undefined) {
+              await this.#cache.set(cacheKey, []);
+            }
+            return [];
+          }
+          telemetry.parsedFiles += 1;
+          const bound = createBoundSource(relativeFile, content);
+          const parseErrors = bound.diagnostics.filter(
+            (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
           );
-          if (assistants.matched && assistantsResolution.status === "unmapped") {
-            throw new AnalysisError(
-              "No locked TypeScript migration edge exists for the Assistants API.",
-            );
+          if (parseErrors.length > 0) {
+            const message = parseErrors.map(parseDiagnosticMessage).join("; ");
+            throw new AnalysisError(`Unable to parse ${relativeFile}: ${message}`);
           }
-          findings.push(...assistants.findings);
-        }
-        return findings;
-      }),
-    );
+          const constructors = collectOpenAiConstructors(bound.sourceFile, bound.checker);
+          const openAiTypes = collectOpenAiTypeSymbols(bound.sourceFile, bound.checker);
+          const clients = collectOpenAiClients(bound.sourceFile, bound.checker, constructors);
+          const findings: Finding[] = [];
+          if (hasModelCandidate) {
+            if (modelResolution.status === "unmapped") {
+              throw new AnalysisError(
+                `No locked TypeScript migration edge exists for ${SOURCE_MODEL}.`,
+              );
+            }
+            findings.push(...scanSource(relativeFile, content, modelResolution, bound));
+          }
+          if (hasAssistantsCandidate && (clients.size > 0 || openAiTypes.size > 0)) {
+            const assistants = scanAssistantsSource(
+              relativeFile,
+              content,
+              bound.sourceFile,
+              bound.checker,
+              clients,
+              openAiTypes,
+              assistantsResolution.status === "unmapped" ? undefined : assistantsResolution,
+            );
+            if (assistants.matched && assistantsResolution.status === "unmapped") {
+              throw new AnalysisError(
+                "No locked TypeScript migration edge exists for the Assistants API.",
+              );
+            }
+            findings.push(...assistants.findings);
+          }
+          if (cacheKey !== undefined && this.#cache !== undefined) {
+            await this.#cache.set(cacheKey, findings);
+          }
+          return findings;
+        }),
+      );
+    } finally {
+      this.#lastScanTelemetry = telemetry;
+    }
     const normalizedFindings = findingGroups.flat();
     const hasModelFindings = normalizedFindings.some(
       (finding) => finding.analysis.family === "model-snapshot",

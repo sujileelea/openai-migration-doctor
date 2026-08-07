@@ -5,6 +5,8 @@
       "package.json",
       "packages/*/package.json",
       "packages/*/src/**",
+      "benchmarks/src/**",
+      "benchmarks/*.json",
       "tests/**",
       "*.json",
       "*.ts",

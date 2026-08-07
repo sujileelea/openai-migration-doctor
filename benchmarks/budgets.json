@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "corpus": {
+    "minimumFixtures": 100,
+    "minimumAuthoredTemplates": 40
+  },
+  "accuracy": {
+    "minimumPrecision": 0.99,
+    "minimumRecall": 0.95,
+    "minimumAbstentionRecall": 0.95
+  },
+  "performance": {
+    "minimumLines": 1000000,
+    "maximumColdDurationMs": 30000,
+    "maximumWarmDurationMs": 3000,
+    "minimumWarmCacheHitRate": 0.99
+  },
+  "network": {
+    "maximumObservedNodeHttpRequests": 0
+  }
+}
