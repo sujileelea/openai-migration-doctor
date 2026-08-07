@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "phase6-benchmark",
+  "toolVersion": "0.0.0",
+  "commitSha": "6411e60d987fedf8988dc0ace5f20c6c8ab27482",
+  "repositoryWorkingTreeClean": true,
+  "sourceLockHash": "0a502ee420eee4a2208cccbaa38e683e64676e87acc767f3d81f15468d9856a6",
+  "environment": {
+    "nodeVersion": "v22.18.0",
+    "platform": "darwin",
+    "release": "25.5.0",
+    "architecture": "arm64",
+    "cpuModel": "Apple M3 Max",
+    "logicalCpuCount": 14,
+    "totalMemoryBytes": 38654705664
+  },
+  "corpus": {
+    "id": "typescript-phase6-synthetic-v1",
+    "authoredSynthetic": true,
+    "authoredTemplates": 42,
+    "fixtures": 120,
+    "fixtureClasses": {
+      "alias": 22,
+      "comment": 4,
+      "dead-code": 4,
+      "documentation": 4,
+      "dynamic-configuration": 18,
+      "indirect-invocation": 2,
+      "negative-control": 48,
+      "positive-control": 60,
+      "test-code": 4,
+      "unsupported-wrapper": 6
+    },
+    "accuracyLines": 514,
+    "performanceLines": 1000000,
+    "performanceFiles": 1000,
+    "performanceCandidateFiles": 20,
+    "sha256": "13a8b1ab08a68268c2d8c097ecfccc0c8d7c04b2cfaefa8bad0203c7f7911de4"
+  },
+  "accuracy": {
+    "fixtures": 120,
+    "expectedFindings": 95,
+    "actualFindings": 95,
+    "negativeControls": 48,
+    "trueNegativeControls": 48,
+    "falsePositiveFixtures": 0,
+    "overall": {
+      "truePositives": 95,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "supported": {
+      "truePositives": 75,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "abstentions": {
+      "truePositives": 20,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1
+    },
+    "mismatches": {
+      "falsePositives": [],
+      "falseNegatives": []
+    }
+  },
+  "performance": {
+    "cold": {
+      "mode": "cold",
+      "lines": 1000000,
+      "files": 1000,
+      "durationMs": 197.68,
+      "peakRssBytes": 405536768,
+      "cache": {
+        "cacheEnabled": true,
+        "files": 1000,
+        "cacheHits": 0,
+        "cacheMisses": 1000,
+        "parsedFiles": 20
+      },
+      "observedNodeHttpRequests": 0
+    },
+    "warmIncremental": {
+      "mode": "warm-incremental",
+      "lines": 1000000,
+      "files": 1000,
+      "durationMs": 81.44,
+      "peakRssBytes": 498466816,
+      "cache": {
+        "cacheEnabled": true,
+        "files": 1000,
+        "cacheHits": 999,
+        "cacheMisses": 1,
+        "parsedFiles": 1
+      },
+      "observedNodeHttpRequests": 0
+    }
+  },
+  "budgets": {
+    "checks": [
+      {
+        "id": "corpus.fixture-count",
+        "actual": 120,
+        "operator": ">=",
+        "budget": 100,
+        "passed": true
+      },
+      {
+        "id": "corpus.authored-template-count",
+        "actual": 42,
+        "operator": ">=",
+        "budget": 40,
+        "passed": true
+      },
+      {
+        "id": "accuracy.supported-precision",
+        "actual": 1,
+        "operator": ">=",
+        "budget": 0.99,
+        "passed": true
+      },
+      {
+        "id": "accuracy.supported-recall",
+        "actual": 1,
+        "operator": ">=",
+        "budget": 0.95,
+        "passed": true
+      },
+      {
+        "id": "accuracy.abstention-recall",
+        "actual": 1,
+        "operator": ">=",
+        "budget": 0.95,
+        "passed": true
+      },
+      {
+        "id": "performance.cold-lines",
+        "actual": 1000000,
+        "operator": ">=",
+        "budget": 1000000,
+        "passed": true
+      },
+      {
+        "id": "performance.warm-lines",
+        "actual": 1000000,
+        "operator": ">=",
+        "budget": 1000000,
+        "passed": true
+      },
+      {
+        "id": "performance.cold-duration-ms",
+        "actual": 197.68,
+        "operator": "<=",
+        "budget": 30000,
+        "passed": true
+      },
+      {
+        "id": "performance.warm-duration-ms",
+        "actual": 81.44,
+        "operator": "<=",
+        "budget": 3000,
+        "passed": true
+      },
+      {
+        "id": "performance.warm-cache-hit-rate",
+        "actual": 0.999,
+        "operator": ">=",
+        "budget": 0.99,
+        "passed": true
+      },
+      {
+        "id": "network.cold-observed-node-http-requests",
+        "actual": 0,
+        "operator": "<=",
+        "budget": 0,
+        "passed": true
+      },
+      {
+        "id": "network.warm-observed-node-http-requests",
+        "actual": 0,
+        "operator": "<=",
+        "budget": 0,
+        "passed": true
+      }
+    ],
+    "passed": true
+  }
+}
