@@ -30,7 +30,7 @@
     {
       "kind": "migration",
       "path": "data/migrations/gpt-4o-mini-transcribe-2025-03-20.json",
-      "sha256": "0e09ed5e0b1f1e6e141a813a25fbd70e76aec5dce8f4087dc46bd421a46de4d3"
+      "sha256": "5aa64ddc780cac5eb692210254f767d4475d22b09e04041d0f8178959b541f4c"
     },
     {
       "kind": "migration",

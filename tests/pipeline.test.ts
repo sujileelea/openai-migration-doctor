@@ -53,6 +53,7 @@ describe("deterministic TypeScript vertical slice", () => {
 
     expect(scan.summary).toEqual({ total: 1, blocking: 1, graphIssues: 0 });
     expect(scan.findings[0]).toMatchObject({
+      id: "206aba3c539f65ed2bd4cb216e800722918d5bd76c2c67f75c4251df0a1738f3",
       ruleId: "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20",
       evidence: "gpt-4o-mini-transcribe-2025-03-20",
       confidence: "high",

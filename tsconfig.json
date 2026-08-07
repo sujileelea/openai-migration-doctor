@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/language-typescript" },
+    { "path": "./packages/language-python" },
     { "path": "./benchmarks" },
     { "path": "./packages/codex-adapter" },
     { "path": "./packages/reporters" },

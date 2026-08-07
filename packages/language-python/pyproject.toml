@@ -1,0 +1,11 @@
+[project]
+name = "migration-doctor-language-python-worker"
+version = "0.0.0"
+description = "Local LibCST worker for Migration Doctor's Python language adapter"
+requires-python = ">=3.9"
+dependencies = [
+  "libcst==1.9.0",
+]
+
+[tool.uv]
+package = false

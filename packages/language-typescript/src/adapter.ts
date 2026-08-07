@@ -3,12 +3,11 @@ import {
   type AdapterScanResult,
   AnalysisError,
   canonicalJson,
+  createModelSnapshotFinding,
   type Finding,
   FindingSchema,
   type LanguageAdapter,
   listRepositoryFiles,
-  type MigrationResolution,
-  REPORT_SCHEMA_VERSION,
   resolveMigrationPath,
   resolveRepositoryFile,
   SemanticVerifierSchema,
@@ -29,7 +28,7 @@ import type { TypeScriptAnalysisCache } from "./cache.js";
 const SOURCE_MODEL = "gpt-4o-mini-transcribe-2025-03-20";
 const RULE_ID = "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20";
 const TYPESCRIPT_EXTENSIONS = [".cts", ".mts", ".ts", ".tsx"] as const;
-const ANALYSIS_CACHE_VERSION = "typescript-analysis-v1";
+const ANALYSIS_CACHE_VERSION = "typescript-analysis-v2";
 
 export type TypeScriptScanTelemetry = {
   cacheEnabled: boolean;
@@ -177,7 +176,7 @@ export function verifyTypeScriptTranscriptionModelMigration(request: {
 function scanSource(
   relativeFile: string,
   content: string,
-  resolution: Exclude<MigrationResolution, { status: "unmapped" }>,
+  resolution: Parameters<typeof createModelSnapshotFinding>[0]["resolution"],
   bound: BoundSource = createBoundSource(relativeFile, content),
 ): Finding[] {
   const parseErrors = bound.diagnostics.filter(
@@ -195,32 +194,7 @@ function scanSource(
     return [];
   }
 
-  const fileHash = sha256(content);
   const findings: Finding[] = [];
-  const deterministicModelReplacement =
-    resolution.status === "resolved" &&
-    resolution.automationTier === "A" &&
-    resolution.to.kind === "model";
-  const findingKind =
-    resolution.status === "blocked" && resolution.issue.kind === "source-conflict"
-      ? "source-conflict"
-      : deterministicModelReplacement
-        ? "deprecated-usage"
-        : "migration-blocked";
-  const automationTier =
-    resolution.status === "blocked"
-      ? "C"
-      : resolution.to.kind !== "model"
-        ? "C"
-        : resolution.automationTier;
-  const abstentionReason =
-    resolution.status === "blocked"
-      ? resolution.issue.message
-      : resolution.to.kind !== "model"
-        ? `Terminal migration destination ${resolution.to.kind}:${resolution.to.id} is not a model literal.`
-        : resolution.automationTier !== "A"
-          ? `Migration path requires Tier ${resolution.automationTier} review.`
-          : undefined;
 
   function visit(node: ts.Node): void {
     if (ts.isCallExpression(node)) {
@@ -241,51 +215,23 @@ function scanSource(
           const startOffset = literal.getStart(sourceFile) + 1;
           const endOffset = literal.getEnd() - 1;
           const position = sourceFile.getLineAndCharacterOfPosition(startOffset);
-          findings.push({
-            schemaVersion: REPORT_SCHEMA_VERSION,
-            id: sha256(
-              [
-                RULE_ID,
-                resolution.edgeIds.join("\u0001"),
-                relativeFile,
+          findings.push(
+            createModelSnapshotFinding({
+              language: "typescript",
+              ruleId: RULE_ID,
+              sourceModel: SOURCE_MODEL,
+              relativeFile,
+              content,
+              resolution,
+              location: {
+                file: relativeFile,
+                line: position.line + 1,
+                column: position.character + 1,
                 startOffset,
                 endOffset,
-              ].join("\u0000"),
-            ),
-            kind: findingKind,
-            language: "typescript",
-            resource: { kind: "model", id: SOURCE_MODEL },
-            ruleId: RULE_ID,
-            severity: "error",
-            location: {
-              file: relativeFile,
-              line: position.line + 1,
-              column: position.character + 1,
-              startOffset,
-              endOffset,
-            },
-            fileHash,
-            evidence: SOURCE_MODEL,
-            migrationEdgeIds: resolution.edgeIds,
-            graphIssueIds: resolution.issue ? [resolution.issue.id] : [],
-            confidence: "high",
-            automationTier,
-            reviewRequired:
-              resolution.reviewRequired || !deterministicModelReplacement || automationTier !== "A",
-            analysis: {
-              family: "model-snapshot",
-              feature: "model-snapshot",
-              pattern: "direct",
-              disposition: "supported",
-            },
-            ...(abstentionReason ? { abstentionReason } : {}),
-            remediation: deterministicModelReplacement
-              ? {
-                  kind: "replace-string-literal",
-                  replacement: resolution.to.id,
-                }
-              : { kind: "none" },
-          });
+              },
+            }),
+          );
         }
       }
     }

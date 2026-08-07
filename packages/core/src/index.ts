@@ -4,6 +4,7 @@ export * from "./compare.js";
 export * from "./errors.js";
 export * from "./graph.js";
 export * from "./hash.js";
+export * from "./model-snapshot.js";
 export * from "./patch.js";
 export * from "./plan.js";
 export * from "./ports.js";
