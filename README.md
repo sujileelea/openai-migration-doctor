@@ -2,9 +2,16 @@
 
 > Deterministic detection, source-grounded planning, scoped transformation, and behavioral verification for OpenAI API migrations.
 
-**Project status:** pre-alpha. Local source builds support one deterministic TypeScript model-snapshot migration end to end, review-only Assistants API analysis, offline before/after behavioral contract verification, and an opt-in Codex remediation adapter boundary. No production rule or CLI command currently routes a plan to Codex, Assistants transformation is not implemented, and repository runtime or live-API parity is not evaluated.
+**Project status:** pre-alpha. Local source builds support one deterministic TypeScript and Python
+model-snapshot migration end to end, review-only TypeScript Assistants API analysis, offline
+before/after behavioral contract verification, saved report bundles, and an opt-in Codex remediation
+adapter boundary. No production rule or CLI command routes a plan to Codex, Assistants
+transformation is not implemented, and repository runtime or live-API parity is not evaluated.
 
-Migration Doctor is an **unofficial developer tool intended for open-source release** after license and provenance review. It is not an OpenAI product and is not affiliated with or endorsed by OpenAI.
+Migration Doctor is an **unofficial, publicly developed pre-alpha developer tool**. License
+selection and the provenance policy are still pending, so source availability is not an
+open-source license grant. It is not an OpenAI product and is not affiliated with or endorsed by
+OpenAI.
 
 ## Why this exists
 
@@ -30,7 +37,8 @@ The current `migration.lock` pins:
 - [Assistants migration guide](https://developers.openai.com/api/docs/assistants/migration)
 - [Migrate from prompt objects](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object)
 
-Agent Builder, Codex, and skill documentation remain planned source families, not current rule coverage.
+Agent Builder and Codex documentation are not current migration-rule source families. The
+checked-in audit skill packages the implemented CLI workflow; it does not expand rule coverage.
 
 Official documentation changes over time. Migration Doctor versions reviewed source records and content hashes; it does not vendor the raw documentation pages. It never silently resolves a source disagreement. If two current sources imply incompatible destinations, the finding is routed to human review.
 
@@ -50,10 +58,30 @@ Tier B plan, so normal CLI workflows never invoke Codex.
 
 ## Local quickstart
 
+Prerequisites are Git, Node.js 20 or later, Corepack, Python 3.9 or later, and `curl`. Install the
+exact supported `uv` release, then install both frozen dependency sets. The checked-in `uv.lock`
+resolves the worker to exactly LibCST 1.9.0; `--locked` rejects dependency drift instead of
+updating that lock.
+
 ```bash
+git clone https://github.com/sujileelea/openai-migration-doctor.git
+cd openai-migration-doctor
+
+curl -LsSf https://astral.sh/uv/0.9.18/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+uv --version # must report uv 0.9.18
+
 corepack pnpm install --frozen-lockfile
+uv sync --project packages/language-python --locked
+corepack pnpm python:lock:check
 corepack pnpm build
-corepack pnpm run doctor scan fixtures/typescript/direct-model-literal
+
+REPORT_PARENT="$(mktemp -d)"
+corepack pnpm run doctor report fixtures/typescript/direct-model-literal \
+  --output "$REPORT_PARENT/typescript-report"
+corepack pnpm run doctor report fixtures/python/direct-model-literal \
+  --output "$REPORT_PARENT/python-report"
+
 corepack pnpm run doctor plan fixtures/typescript/direct-model-literal
 corepack pnpm run doctor migrate fixtures/typescript/direct-model-literal --risk safe
 corepack pnpm run doctor verify fixtures/typescript/direct-model-literal
@@ -63,6 +91,13 @@ corepack pnpm run doctor verify-behavior \
   fixtures/behavior/assistants-to-responses/baseline.json \
   fixtures/behavior/assistants-to-responses/candidate-compatible.json
 ```
+
+Each `report` output must be a new directory outside the scanned target. It contains
+`migration-report.md`, `migration-report.json`, `migration-report.sarif`, and
+`migration-report.html`. The command performs one scan and prints the selected format to stdout as
+well; pass `--format json`, `sarif`, or `html` when needed. Both quickstart report targets contain
+the deprecated literal, so each writes a complete bundle and then exits `1` as an expected finding
+result.
 
 Use `--format json` for canonical machine output. Execution duration and cache state are written to
 stderr so JSON remains byte-stable for the same command inputs and source lock.
@@ -74,7 +109,14 @@ so changes to one contract do not silently rewrite another.
 
 ### `scan`
 
-Indexes supported TypeScript files and reports exact evidence without calling an external API or changing the repository.
+Indexes supported TypeScript and Python files and reports exact evidence without calling an
+external API or changing the repository.
+
+### `report`
+
+Runs the same read-only scan once and saves Markdown, canonical JSON, SARIF 2.1.0, and a script-free
+static HTML view with all-or-cleanup failure handling. It refuses an existing destination or any
+output location inside the scanned repository.
 
 ### `plan`
 
@@ -106,34 +148,47 @@ Compares versioned baseline and candidate observations against an offline behavi
 | Rule | Scope | Tier | Verification |
 | --- | --- | --- | --- |
 | `gpt-4o-mini-transcribe-2025-03-20` to `gpt-4o-mini-transcribe-2025-12-15` | Direct string literal in a recognized OpenAI TypeScript `audio.transcriptions.create` call | A | Exact edit and file-boundary contracts; runtime transcript parity not verified |
+| `gpt-4o-mini-transcribe-2025-03-20` to `gpt-4o-mini-transcribe-2025-12-15` | Exact `model=` string literal in a recognized Python `audio.transcriptions.create` call on a directly assigned `OpenAI` or `AsyncOpenAI` client | A | LibCST rewrite preserves formatting and comments; exact edit and file-boundary contracts; runtime transcript parity not verified |
 | `openai.assistants.api.assistants` | Reviewed direct or statically aliased TypeScript Assistants methods | C | Manual action; no automatic transformation; original tree unchanged |
 | `openai.assistants.api.threads` | Reviewed Thread, Message, composite Thread/Run, and nested Run methods | C | Manual action; no automatic transformation; original tree unchanged |
 | `openai.assistants.api.runs` | Reviewed composite Thread/Run, Run, and Run Step methods | C | Manual action; no automatic transformation; original tree unchanged |
 | `openai.assistants.feature.*` | Streaming, tools, file search, and code interpreter facets bound to a confirmed deprecated call | C | Manual action; runtime semantics unverified |
 
-The model rule intentionally keeps its narrow direct-call boundary. Assistants rules support selected static aliases and route high-signal wrappers, detached methods, computed access, indirect invocation, and dynamic facets to explicit abstentions. See the public [Assistants feature and pattern matrix](docs/assistants-rule-matrix.md) and [limitations](docs/limitations.md).
+The model rule intentionally keeps a narrow direct-call boundary. The Python adapter scans `.py`
+and `.pyi`, requires LibCST-proven imported constructors and a direct same-scope client assignment,
+and conservatively skips a candidate beneath a local `openai.py` or `openai/__init__.py`. The
+TypeScript Assistants rules support selected static aliases and route high-signal wrappers,
+detached methods, computed access, indirect invocation, and dynamic facets to explicit
+abstentions. Python Assistants analysis and JavaScript are not implemented. See the public
+[Assistants feature and pattern matrix](docs/assistants-rule-matrix.md) and
+[limitations](docs/limitations.md).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     A[Reviewed official-source records] --> B[migration.lock]
-    C[TypeScript repository] --> D[Deterministic AST analyzer]
+    C[TypeScript or Python repository] --> D[Language adapter]
+    D --> M[TypeScript AST]
+    D --> N[Isolated LibCST worker]
     B --> I[Migration graph resolver]
     I --> E[Frozen patch plan]
-    D --> E
+    M --> E
+    N --> E
     E --> F[Patch preview]
     F --> G[Temporary-tree verification]
     E --> J[Bound semantic manifest]
     J --> K[Allowlist-only Codex proposal]
     K --> L[Standalone verification snapshot]
     L --> H
-    G --> H[Markdown and canonical JSON]
+    G --> H[Markdown, JSON, SARIF, and HTML]
 ```
 
-Production Tier B rules and a CLI Codex surface, Python, SARIF, HTML, and caching remain planned.
-The adapter package is removable and neither core nor CLI imports it. The implemented dependency
-direction is documented in [architecture](docs/architecture.md).
+The CLI composes both language adapters with the same core pipeline and reporters. The removable
+Codex adapter remains outside CLI dependency flow; no production Tier B rule routes to it. The
+TypeScript adapter has a process-local content-hash cache, while the Python adapter uses an
+isolated, sanitized LibCST subprocess. The implemented dependency direction is documented in
+[architecture](docs/architecture.md).
 
 ### 1. Versioned migration graph
 
@@ -154,13 +209,18 @@ The resolver follows same-language edges until it reaches a destination that is 
 
 ### 2. Deterministic repository analysis
 
-The analyzer is responsible for evidence, not prose. It currently confirms one model literal rule and seven atomic Assistants feature classes from reviewed TypeScript call shapes. Findings include a stable rule ID, exact location, minimized evidence, source-backed graph path, confidence, automation tier, feature, pattern, disposition, and stable abstention code. SDK version inference, reusable Prompt detection, cross-file data flow, configuration files, and environment-based references remain future work.
+The analyzers are responsible for evidence, not prose. They confirm one model literal rule in
+TypeScript and Python and seven atomic Assistants feature classes in reviewed TypeScript call
+shapes. Findings include a stable rule ID, exact location, minimized evidence, source-backed graph
+path, confidence, automation tier, feature, pattern, disposition, and stable abstention code. SDK
+version inference, reusable Prompt detection, cross-file data flow, configuration files, and
+environment-based references remain future work.
 
 ### 3. Risk-tiered transformation
 
 | Tier | Meaning | Default behavior |
 | --- | --- | --- |
-| **A: deterministic** | The transformation is syntax-local and the official mapping is unambiguous. | Patch preview; auto-apply only when requested. |
+| **A: deterministic** | The transformation is syntax-local and the official mapping is unambiguous. | Patch preview and temporary-copy verification; no source-tree apply in pre-alpha. |
 | **B: Codex-assisted** | The migration changes state, orchestration, or multiple files. | Source-backed plan, constrained Codex patch, mandatory verification. |
 | **C: plan only** | Behavior cannot be established automatically or sources require interpretation. | No code change; emit an actionable plan and abstention reason. |
 
@@ -191,7 +251,7 @@ exactly. Reports contain mismatch paths and input hashes, not primitive output o
 | --- | --- |
 | TypeScript | Direct Transcriptions snapshot migration plus constrained Assistants analysis implemented |
 | JavaScript | Planned |
-| Python | Analyze, transform, and verify |
+| Python | Direct Transcriptions snapshot analysis, format-preserving transformation, and deterministic verification implemented for `.py` and `.pyi` |
 | Deprecated model IDs | Deterministic migration when compatibility is established |
 | Assistants to Responses + Conversations | Feature-level analysis and offline behavioral contracts implemented; transformation planned |
 | Streaming and function calling | Assistants-bound detection implemented; transformation planned |
@@ -249,7 +309,7 @@ The report also records exact offsets and the original file hash so a stale plan
 
 ## Quality targets
 
-These are release gates, not current results:
+These remain release gates beyond the checked-in synthetic corpus:
 
 - at least **99% precision** on the labeled benchmark corpus;
 - at least **95% recall** on supported patterns;
@@ -275,7 +335,8 @@ Targets must be published with hardware, OS, repository composition, and tool ve
 - Codex invoked only for findings that require semantic remediation;
 - latency, peak memory, token usage, and API cost reported together.
 
-The benchmark suite will treat performance regressions as release blockers.
+The benchmark suite treats budget regressions as blockers. The checked-in Phase 6 result below is
+one controlled synthetic measurement, not evidence about arbitrary public repositories.
 
 ## Security and privacy
 
@@ -289,40 +350,53 @@ The benchmark suite will treat performance regressions as release blockers.
   source scope to the OpenAI controller; model tool network access remains disabled.
 - Codex verification uses a standalone export of the exact frozen Git revision.
 - Full-access execution is not part of the supported workflow.
-- Secrets, environment values, raw transcripts, and customer code are excluded from public reports.
+- Full source-file bodies, secrets, environment values, and raw transcripts are excluded from
+  reports; minimized finding evidence and repository-relative locations remain visible for audit.
 - No patch is pushed, opened as a pull request, deployed, or merged without explicit user action.
 
 ## Evaluation
 
-The current deterministic suite contains 12 TypeScript fixture classes, five checked-in synthetic
-graph fixtures, nine offline behavior fixtures, and 130 automated tests. It covers schema
-invariants, byte-exact source locks, graph traversal and conflicts, constrained-path abstention,
-model and Assistants analysis, symbol identity and alias boundaries, stable unsupported-pattern
-routing, stale plans, locale-independent canonical reports, atomic abstention, patch preview,
-temporary-tree verification, isolated behavioral regressions, Codex scope and tool-policy failures,
-report redaction, and CLI exit codes.
+The deterministic suite covers schema invariants, byte-exact source locks, graph traversal and
+conflicts, constrained-path abstention, TypeScript and Python model analysis, TypeScript Assistants
+analysis, symbol identity and alias boundaries, stable unsupported-pattern routing, stale plans,
+locale-independent canonical reports, atomic abstention, patch preview, temporary-tree
+verification, isolated behavioral regressions, Codex scope and tool-policy failures, reporter
+redaction, developer surfaces, and CLI exit codes.
 
-On the authored Phase 3 corpus, supported detection measures 19 true positives, 0 false positives, and 0 false negatives: 100% precision and 100% recall. All 13 labeled high-signal abstentions route exactly, and a separate 34-call method matrix produces the expected 58 atomic feature findings. These are synthetic implementation results, not a public benchmark or a claim about arbitrary repositories.
+The published Phase 6 ledger contains 120 authored synthetic TypeScript fixture instances derived
+from 42 independent authored templates, with 95 expected findings. Supported cases produced 75 true
+positives, 0 false positives, and 0 false negatives. Abstention cases produced 20 true positives,
+0 false positives, and 0 false negatives. This establishes exact results only for the declared
+synthetic corpus; it is not a quality claim for arbitrary repositories.
 
-The public benchmark will include:
+The same ledger measured a generated 1,000,000-line, 1,000-file repository at 197.68 ms cold and
+81.44 ms warm incremental, with 999 of 1,000 warm cache hits. Peak RSS was 405,536,768 bytes cold
+and 498,466,816 bytes warm. Both passes observed 0 Node.js HTTP requests. That observer covers the
+instrumented Node HTTP clients; it is not proof of total process or host egress.
 
-- at least 100 labeled TypeScript and Python fixtures;
-- supported OpenAI SDK version combinations;
-- positive and negative controls;
-- aliases, wrappers, dynamic configuration, comments, and dead code;
-- streaming, tools, and conversation state;
-- ambiguous cases that must abstain;
-- replacement targets that are themselves scheduled for shutdown;
-- source disagreement requiring human review.
+Environment: Apple M3 Max, Darwin arm64, Node.js 22.18.0. Evidence is the checked-in
+[TypeScript benchmark ledger](benchmarks/results/typescript-macos-arm64-6411e60.json) generated
+from clean commit
+[`6411e60d987fedf8988dc0ace5f20c6c8ab27482`](https://github.com/sujileelea/openai-migration-doctor/commit/6411e60d987fedf8988dc0ace5f20c6c8ab27482).
 
-The benchmark reports precision, recall, false-positive classes, transformation success, behavioral parity, abstention quality, latency, memory, and cost.
+Python measurements use a separate `adapter-smoke` ledger because process startup and LibCST
+worker memory are a different measurement boundary. On the same Apple M3 Max host, its one-file,
+259-byte candidate produced one finding in 192.364 ms, 107.067 ms, and 105.420 ms across three
+isolated worker iterations. Reported worker peak RSS was 36,012,032, 35,700,736, and 35,749,888
+bytes. The environment used Node.js 22.18.0, Python 3.13.11, and LibCST 1.9.0 on Darwin arm64.
+These figures are not combined with the TypeScript corpus or presented as a cross-language
+benchmark. See the clean-revision
+[Python adapter-smoke ledger](packages/language-python/performance-results/python-macos-arm64-757ceaa.json)
+from commit
+[`757ceaa04c8ca2b2965f341e39e3bffbbc5e96e0`](https://github.com/sujileelea/openai-migration-doctor/commit/757ceaa04c8ca2b2965f341e39e3bffbbc5e96e0).
 
 ## Outputs
 
 Implemented now:
 
-- terminal Markdown;
-- canonical JSON;
+- terminal Markdown, canonical JSON, SARIF 2.1.0, and script-free static HTML;
+- all-or-cleanup saved bundles containing `migration-report.md`, `migration-report.json`,
+  `migration-report.sarif`, and `migration-report.html` outside the scanned target;
 - exact file and line findings;
 - source-backed patch plans;
 - source-backed manual migration actions;
@@ -334,14 +408,54 @@ Implemented now:
   no prompt, response, command, source body, unexpected path, temporary path, or thread ID. Failed
   model runs also return a redacted audit when execution reached the runner.
 
-Planned after the core stabilizes:
+SARIF and HTML are views of the same normalized report as Markdown and JSON. They do not run a
+second analysis or widen supported detection. GitHub annotations are available by uploading the
+saved SARIF file; the HTML document has no script or external asset dependency.
 
-- `migration-report.md`;
-- `migration-report.json`;
-- SARIF for code-host annotations;
-- a static HTML report;
-- an optional pull-request summary;
-- a product-feedback memo that separates documentation friction from tool limitations.
+## GitHub Action
+
+The composite action builds an isolated temporary export of its own source, installs the exact Node
+and Python locks there, scans the requested target without writing it, and publishes the report
+directory and SARIF path as outputs when the bundle is complete. Pin external use to a reviewed
+40-character commit SHA, never to `main` or a moving tag:
+
+```yaml
+permissions:
+  contents: read
+
+steps:
+  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    with:
+      persist-credentials: false
+  - id: migration-doctor
+    uses: sujileelea/openai-migration-doctor@321bf81810a7ac9fd849513fe94e7eb6ca4c0e6a
+    with:
+      path: .
+  - if: always() && steps.migration-doctor.outputs.exit-code != ''
+    env:
+      MIGRATION_DOCTOR_EXIT_CODE: ${{ steps.migration-doctor.outputs.exit-code }}
+    run: exit "$MIGRATION_DOCTOR_EXIT_CODE"
+```
+
+Exit `0` means no blocking supported finding. Exit `1` means the report completed and contains
+blocking findings; the composite action temporarily returns success for both `0` and `1` so a
+workflow can upload the bundle and SARIF before enforcing the `exit-code` output. Tool errors `2`
+through `5` fail the action. See the checked-in
+[example workflow](.github/workflows/migration-doctor.yml) for exact-pinned upload actions and
+fork-safe SARIF handling.
+
+## Codex skill
+
+The checked-in [`migration-audit` skill](.agents/skills/migration-audit/SKILL.md) tells Codex to
+export the committed Migration Doctor revision, install both frozen dependency sets in a private
+temporary tool directory, run `report`, and interpret exit `1` as a completed audit result. Invoke
+`$migration-audit` from a Codex session that has this repository's skills available, and provide the
+target repository path. The skill does not edit the target or invoke the optional Codex remediation
+adapter.
+
+An optional plugin was evaluated but is not implemented: the checked-in skill and composite action
+already cover repository-local and CI use, and a plugin currently adds no distinct packaging or
+distribution value.
 
 ## Implemented repository structure
 
@@ -351,22 +465,30 @@ migration-doctor/
 │   ├── core/
 │   ├── cli/
 │   ├── codex-adapter/
+│   ├── language-python/
 │   ├── language-typescript/
 │   └── reporters/
+├── benchmarks/
+│   └── results/
 ├── data/
 │   ├── sources/
 │   └── migrations/
 ├── fixtures/
 │   ├── behavior/
 │   ├── graph/
+│   ├── python/
 │   └── typescript/
 ├── docs/
 │   ├── architecture.md
 │   ├── assistants-rule-matrix.md
 │   ├── methodology.md
+│   ├── rule-authoring.md
 │   ├── safety.md
 │   └── limitations.md
 ├── tests/
+├── .agents/skills/migration-audit/
+├── .github/workflows/migration-doctor.yml
+├── action.yml
 ├── AGENTS.md
 ├── migration.lock
 └── README.md
@@ -381,9 +503,9 @@ The project is quality-gated rather than date-gated:
 3. **Done:** add Assistants analysis and useful unsupported-pattern abstention without transformation.
 4. **Done:** define offline application behavioral contracts and prove precise failures against deliberately broken observations.
 5. **Done:** add isolated Codex remediation infrastructure constrained by the frozen plan and the same contracts; no production rule routes into it yet.
-6. **Current:** publish the benchmark and performance ledger.
-7. Add Python through the same language-adapter contract.
-8. Package the validated workflow as a Codex skill, then as a plugin if broader distribution is justified.
+6. **Done:** publish the authored synthetic benchmark, budgets, process-local TypeScript cache, and reproducible performance ledger.
+7. **Done:** add the exact-locked LibCST Python adapter through the shared language-adapter contract.
+8. **Done:** publish Markdown, JSON, SARIF, and HTML report bundles, a composite GitHub Action, a rule-authoring guide, and the checked-in Codex audit skill. Plugin packaging was deliberately omitted because it adds no current distribution value.
 
 Each step must improve the evidence base; feature count alone is not progress.
 
@@ -399,7 +521,7 @@ Each step must improve the evidence base; feature count alone is not progress.
 
 ## Contributing
 
-The contribution model will be defined after the first vertical slice. Every migration rule will require:
+Follow the [rule-authoring guide](docs/rule-authoring.md). Every migration rule requires:
 
 1. an official source;
 2. positive and negative fixtures;

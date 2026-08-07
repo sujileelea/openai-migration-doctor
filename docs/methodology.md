@@ -96,7 +96,7 @@ requires semantic review of conversation state, streaming, and tool behavior.
 
 ## Model automation boundary
 
-Tier A applies only when the TypeScript AST proves all of the following:
+For TypeScript, Tier A applies only when the AST proves all of the following:
 
 1. `OpenAI` was imported from `openai` in the same file.
 2. A local client was directly constructed with that import.
@@ -105,6 +105,21 @@ Tier A applies only when the TypeScript AST proves all of the following:
 5. `model` is a direct property whose value is the exact deprecated string literal.
 
 The edit replaces only the characters inside that literal. It preserves quote style, comments, whitespace, and every unrelated occurrence.
+
+For Python, Tier A applies only to strict UTF-8 `.py` and `.pyi` files when LibCST proves all of the
+following:
+
+1. `OpenAI` or `AsyncOpenAI` resolves to an import from `openai`.
+2. A client name is assigned directly from that constructor at module or function scope.
+3. The client has one binding, is not reassigned, and is constructed before the call.
+4. The call path is exactly `client.audio.transcriptions.create(...)`.
+5. The call has one explicit `model=` keyword whose value is the exact deprecated string literal.
+
+A candidate beneath a local `openai.py` or `openai/__init__.py` is skipped conservatively because
+the external SDK import cannot be proved. Conditional clients, wrappers, aliases, dynamic model
+values, starred arguments, and Python Assistants calls are unsupported. LibCST rewrites only the
+matched literal and tests require formatting, comments, BOM state, newline style, and UTF-16 source
+offsets to remain correct.
 
 ## Assistants analysis boundary
 
@@ -123,7 +138,8 @@ The declared synthetic Phase 3 threshold is at least 99% precision and 95% recal
 subset, with exact routing for labeled high-signal abstentions. The current authored corpus measures
 19 true positives, 0 false positives, and 0 false negatives, for 100% precision and 100% recall. All
 13 labeled abstentions route exactly. A separate 34-call allowlist fixture produces 58 expected
-atomic feature findings. These measurements are fixture evidence, not the Phase 6 public benchmark.
+atomic feature findings. These are historical Phase 3 fixture measurements; the broader authored
+Phase 6 benchmark and its claims boundary are recorded below.
 
 ## Current fixtures
 
@@ -133,18 +149,63 @@ atomic feature findings. These measurements are fixture evidence, not the Phase 
 - a fake client that shadows the real OpenAI client identifier;
 - mutable or reassigned client bindings and use before construction;
 - spread, duplicate, and computed request properties;
-- already-migrated API usage.
+- already-migrated API usage;
 - direct Assistants, Threads, Messages, Runs, Run Steps, streaming, tools, file search, and code
   interpreter usage;
 - runtime import, client, namespace, and resource aliases;
 - typed wrappers, wrapper-derived aliases, detached methods, computed and optional access, indirect
   invocation, and dynamic streaming or tool configuration;
 - Assistants negative controls covering comments, strings, lookalike clients, type-only
-  construction, Responses tools, standalone tool configuration, and `purpose: "assistants"`.
+  construction, Responses tools, standalone tool configuration, and `purpose: "assistants"`;
+- Python direct, aliased-import, module-import, async-client, formatting, BOM, and astral-offset
+  positives, plus reassigned, conditional, shadowed, dynamic-model, unrelated-property, local
+  module-shadow, and already-migrated controls.
 
 The automated suite also covers locked-artifact tampering, parser failure, stale plans, absolute-root independence, Markdown and JSON agreement, original-tree immutability, and CLI exit codes.
 
 Five `example.invalid` graph fixtures exercise a deprecated intermediate destination, conflicting destinations, a cycle, missing guidance, and an SDK constraint without structured repository evidence. They are explicitly synthetic and make no claim about an OpenAI product. Conflict integration tests require a Tier C finding, preserve both source records, and prove that no patch is planned.
+
+## Phase 6 benchmark
+
+The Phase 6 corpus is generated from 42 independently authored TypeScript templates into 120
+synthetic fixture instances. Labels cover the complete declared finding contract, including
+location, evidence, rule and resource identities, graph edges, tier, disposition, reason code, and
+remediation. Of 95 expected findings, supported cases measured 75 true positives, 0 false
+positives, and 0 false negatives; abstentions measured 20 true positives, 0 false positives, and 0
+false negatives. These figures apply only to the checked-in authored corpus and do not predict
+quality on arbitrary public repositories.
+
+The performance corpus is generated separately as 1,000 TypeScript files containing exactly
+1,000,000 lines. Twenty files contain analyzer candidates. A cold scan populates the process-local
+content-hash cache; the warm incremental scan changes one file and expects 999 cache hits. On Apple
+M3 Max, Darwin arm64, and Node.js 22.18.0, clean commit
+[`6411e60d987fedf8988dc0ace5f20c6c8ab27482`](https://github.com/sujileelea/openai-migration-doctor/commit/6411e60d987fedf8988dc0ace5f20c6c8ab27482)
+measured 197.68 ms cold and 81.44 ms warm, with peak RSS of 405,536,768 and 498,466,816 bytes.
+The immutable [ledger](../benchmarks/results/typescript-macos-arm64-6411e60.json) binds the corpus,
+source lock, environment, clean revision, metrics, and budget outcomes.
+
+Both scans observed 0 requests on the instrumented Node.js `undici:request:create` and
+`http.client.request.start` diagnostics channels. A deliberate local HTTP test validates that the
+observer counts Node requests. This evidence is narrower than a total egress proof: it does not
+observe other processes, native libraries, alternate network stacks, or host traffic.
+
+Python uses a separate `adapter-smoke` measurement ledger. Clean commit
+[`757ceaa04c8ca2b2965f341e39e3bffbbc5e96e0`](https://github.com/sujileelea/openai-migration-doctor/commit/757ceaa04c8ca2b2965f341e39e3bffbbc5e96e0)
+measured one 259-byte candidate file in three isolated worker processes: 192.364 ms, 107.067 ms,
+and 105.420 ms, with worker peak RSS of 36,012,032, 35,700,736, and 35,749,888 bytes. The
+environment was Apple M3 Max, Darwin arm64, Node.js 22.18.0, Python 3.13.11, and LibCST 1.9.0. The
+[ledger](../packages/language-python/performance-results/python-macos-arm64-757ceaa.json) also binds
+the corpus hash, migration-edge hash, tool revision, and clean-worktree state. It is not scored as
+the TypeScript authored corpus and is not a public cross-language quality benchmark.
+
+## Report derivation
+
+Markdown, canonical JSON, SARIF 2.1.0, and static HTML are derived from the same normalized report
+object. The CLI `report` command scans once, writes every format to a temporary sibling, claims a
+new external destination, and moves all four files into it. A pre-existing destination, a location
+inside the target, or an incomplete write fails without treating the bundle as published. The
+GitHub Action and checked-in audit skill invoke this command through isolated temporary builds;
+they do not add detection logic.
 
 ## Offline behavioral contracts
 

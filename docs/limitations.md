@@ -1,15 +1,16 @@
 # Limitations
 
-Migration Doctor is pre-alpha. It supports one deterministic model-snapshot replacement and
-review-only Assistants API analysis for a constrained TypeScript subset. It also contains a
-programmatic Codex remediation boundary, but no production rule or CLI command can invoke it.
+Migration Doctor is pre-alpha. It supports one deterministic model-snapshot replacement for
+constrained TypeScript and Python subsets and review-only Assistants API analysis for a constrained
+TypeScript subset. It also contains a programmatic Codex remediation boundary, but no production
+rule or CLI command can invoke it.
 
 ## Detection
 
-- TypeScript only: `.ts`, `.tsx`, `.mts`, and `.cts`.
-- The model-snapshot rule requires a runtime OpenAI import, directly constructed `const` client,
-  exact `audio.transcriptions.create` call, inline request, and direct string-literal `model` in the
-  same file.
+- TypeScript model and Assistants analysis covers `.ts`, `.tsx`, `.mts`, and `.cts`.
+- The TypeScript model-snapshot rule requires a runtime OpenAI import, directly constructed `const`
+  client, exact `audio.transcriptions.create` call, inline request, and direct string-literal
+  `model` in the same file.
 - Assistants analysis recognizes the reviewed method and feature matrix documented in
   [Assistants API TypeScript rule matrix](assistants-rule-matrix.md). It supports renamed imports
   and statically traceable same-file `const` client, namespace, and resource aliases.
@@ -21,9 +22,25 @@ programmatic Codex remediation boundary, but no production rule or CLI command c
   deprecated surface cannot be established safely.
 - Feature extraction is intentionally literal. Configuration assembled through variables, helper
   calls, spreads, computed keys, or conditionals is not treated as confirmed tool or streaming use.
+- Python model analysis covers strict UTF-8 `.py` and `.pyi` files. Invalid UTF-8 and candidate
+  parser errors fail closed.
+- Python requires an imported `OpenAI` or `AsyncOpenAI` constructor, a direct module- or
+  function-scope client assignment with one binding, a later exact
+  `client.audio.transcriptions.create` call, and one exact string-literal `model=` keyword.
+- Python local `openai.py` and `openai/__init__.py` shadows are skipped conservatively. Reassigned or
+  conditional clients, wrappers, indirect clients, dynamic models, starred arguments, and
+  non-literal spellings are not detected.
+- The Python adapter reads all `.py` and `.pyi` files concurrently before filtering candidates and
+  serializes complete candidate sources into one worker request. There is no per-file, aggregate
+  byte, file-count, or request-input cap. A very large repository can therefore exhaust parent
+  process memory before the worker timeout or 64 MiB output caps apply.
+- Python Assistants analysis and JavaScript are not implemented.
 
-These constraints favor precision over recall. The measured 100% precision and recall values apply
-only to the checked-in supported synthetic labels; no public benchmark claim is made.
+These constraints favor precision over recall. In the authored Phase 6 TypeScript corpus, 75
+supported and 20 abstention labels had no false positive or false negative. Those exact results
+apply only to 120 synthetic instances derived from 42 authored templates; they are not a quality
+claim for arbitrary repositories. See the
+[immutable ledger](../benchmarks/results/typescript-macos-arm64-6411e60.json).
 
 ## Transformation and verification
 
@@ -47,7 +64,14 @@ only to the checked-in supported synthetic labels; no public benchmark claim is 
 - Repository build, typecheck, lint, unit tests, and integration tests are not discovered or executed.
 - No audio or live application corpus is executed, so repository runtime behavior remains
   unverified even when an offline fixture contract passes.
-- SDK version compatibility is not inferred. Post-patch repository checks will be required before that claim is possible.
+- SDK version compatibility is not inferred. Post-patch repository checks will be required before
+  that claim is possible.
+- The TypeScript content-hash cache is process-local. It is not a persistent cross-run or
+  distributed cache.
+- The published 1,000,000-line performance sample is synthetic and machine-specific. Its 0 observed
+  Node.js HTTP requests cover only instrumented Node HTTP clients and do not prove total egress.
+- Python performance evidence uses a separate `adapter-smoke` ledger; it does not establish a
+  cross-language benchmark or arbitrary-repository throughput.
 
 ## Codex adapter
 
@@ -113,8 +137,25 @@ only to the checked-in supported synthetic labels; no public benchmark claim is 
 - SDK constraint strings are not treated as repository evidence. Until package/version/location proofs are structured and validated, any relevant constrained edge causes an `unverified-constraint` abstention.
 - Graph diagnostics are currently emitted only for resource families evaluated by an installed language adapter; there is no repository-wide rule-independent graph audit command yet.
 - Source refresh is manual.
-- Canonical JSON and Markdown are implemented for pipeline and offline behavior reports; saved
-  report files, SARIF, HTML, and GitHub annotations are not.
+- Markdown, canonical JSON, SARIF 2.1.0, and script-free static HTML are implemented for pipeline
+  reports. `report` saves all four only to a new directory outside the scanned repository.
+- SARIF contains source locations and official source links for supported findings, but code-host
+  presentation depends on the host's SARIF subset and upload permissions. HTML is a local static
+  view, not an interactive dashboard.
+- SARIF shape and determinism have focused tests, and GitHub CodeQL accepted the upload in the
+  [first hosted workflow run](https://github.com/sujileelea/openai-migration-doctor/actions/runs/31159576201).
+  A separate official SARIF schema-validator suite is not installed.
+- Report publication resolves the target and output parent before its containment and no-replace
+  checks. A malicious same-user process can replace a path component between those operations; Node
+  does not provide the directory-descriptor `openat` primitives needed to close that TOCTOU window.
+  Normal concurrent publishers are tested and only one can claim the destination.
+- The composite GitHub Action supports GitHub-hosted Linux and macOS with Bash, Node.js, Python, uv,
+  and Corepack setup. It deliberately surfaces finding exit `1` as an output before a calling
+  workflow chooses whether to fail; errors `2` through `5` fail the action.
+- The action shell runner, including its no-`.git` packaged-entry fallback, is tested locally. The
+  composite wrapper, runtime setup, SARIF upload, and artifact upload also passed on GitHub-hosted
+  Ubuntu at commit `321bf81810a7ac9fd849513fe94e7eb6ca4c0e6a`; a hosted macOS run remains
+  untested.
 - Runtime telemetry is written to stderr and is not part of the canonical report.
 - Phase 4 structural fields reject unknown keys and report-unsafe identifiers. Arbitrary JSON
   payload keys remain supported except an own `__proto__` key, which is rejected at any depth
@@ -125,5 +166,8 @@ only to the checked-in supported synthetic labels; no public benchmark claim is 
 
 - The package is not published.
 - License selection is pending.
-- Production Codex-assisted rules and CLI orchestration, Python, a public benchmark, a skill, and
-  plugin packaging are not implemented.
+- The composite GitHub Action and checked-in `migration-audit` Codex skill build from committed
+  source in temporary directories; they are not a package-registry distribution.
+- Optional plugin packaging is not implemented because the current skill and action cover the
+  validated workflows without a distinct plugin packaging benefit.
+- Production Codex-assisted rules and CLI orchestration remain unimplemented.

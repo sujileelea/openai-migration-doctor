@@ -1,23 +1,26 @@
 # Architecture
 
-Migration Doctor currently implements one deterministic TypeScript model migration, a review-only
-Assistants API analysis slice, an offline behavioral contract verifier, and a removable Codex
-remediation adapter boundary.
+Migration Doctor implements one deterministic TypeScript and Python model migration, a review-only
+TypeScript Assistants API analysis slice, an offline behavioral contract verifier, four report
+formats, and a removable Codex remediation adapter boundary.
 
 ## Dependency direction
 
 ```text
 core <- language-typescript
+core <- language-python -> LibCST worker
 core <- reporters
 core + language-typescript <- codex-adapter
-core + language-typescript + reporters <- cli
+core + language-typescript + language-python + reporters <- cli
 ```
 
 `packages/core` owns schemas, source-lock validation, orchestration ports, patch planning, patch
 preview, and verification. It does not import a language adapter, reporter, CLI, or Codex
 implementation. `packages/codex-adapter` imports core contracts and the trusted TypeScript analyzer,
 while neither core nor the CLI imports the adapter. Removing the package therefore leaves scan and
-deterministic plan behavior unchanged.
+deterministic plan behavior unchanged. `packages/language-python` is a Node adapter that invokes an
+exact-locked Python worker; the Python process does not own graph resolution, planning, report
+schemas, or verification policy.
 
 ## Pipeline
 
@@ -27,14 +30,18 @@ deterministic plan behavior unchanged.
    reject it unless that snapshot retains the loaded hash. The lock file is a checked-in trust
    anchor, not a signed provenance statement.
 2. `resolveMigrationPath` follows same-language unconstrained edges, aggregates agreeing sources, and records conflicts, missing destinations, cycles, or unverified SDK constraints without selecting a speculative target.
-3. `scanRepository` invokes language adapters and normalizes findings and graph issues to relative POSIX paths.
+3. `scanRepository` invokes the registered TypeScript and Python language adapters and normalizes
+   findings and graph issues to relative POSIX paths.
 4. `createPatchPlan` independently resolves the locked path, then freezes either exact edits or
    source-backed manual actions containing the terminal target, reason code, and behavior changes.
 5. `createPatchPreview` rejects stale or overlapping edits and renders a path-stable diff without writing the source repository. A blocked plan is constrained to zero edits and produces an empty, reportable preview.
 6. `verifyPatchPlan` verifies blocked plans without applying anything. For ready plans, it copies
    the repository to a temporary directory, applies frozen edits, re-scans the copy, compares file
    hashes, and confirms the original tree hash is unchanged.
-7. Reporters serialize the same normalized result as Markdown or canonical JSON.
+7. Reporters serialize the same normalized result as Markdown, canonical JSON, SARIF 2.1.0, or
+   script-free static HTML. The CLI `report` command scans once, stages all four files, claims a new
+   bundle directory outside the scanned repository, and removes partial output if publication
+   fails.
 
 `verifyBehaviorContract` is a separate, repository-independent path. It validates a versioned
 contract plus baseline and candidate observations, selects the referenced edges from the locked
@@ -86,11 +93,46 @@ are ignored. The corresponding contract is named `original_repository_revision_u
 not a claim about ignored worktree bytes. Malformed JSONL and incomplete structured responses return
 a redacted failed-attempt audit instead of discarding the ledger.
 
+## Python worker boundary
+
+The Python adapter enumerates `.py` and `.pyi` through the same repository file boundary as the
+TypeScript adapter, decodes bytes as strict UTF-8, and prefilters only files containing the exact
+source model. Invalid UTF-8 and candidate parse failures stop analysis. A local `openai.py` or
+`openai/__init__.py` on a candidate's import path causes a conservative skip because external SDK
+identity cannot be established safely.
+
+Candidate source is sent as a JSON request to LibCST 1.9.0 in
+`packages/language-python/.venv`. The Node bridge requires absolute interpreter and worker paths,
+starts Python with `-I -X utf8`, supplies no ambient environment on macOS or Linux, preserves only
+the Windows system-root variables required to start the interpreter, caps stdout and stderr, and
+enforces a timeout. Both scan and rewrite responses must report the exact LibCST version and match
+the requested file set and order.
+
+LibCST's qualified-name and scope metadata confirms an imported `OpenAI` or `AsyncOpenAI`
+constructor, a direct module- or function-scope client assignment, and a later exact
+`client.audio.transcriptions.create(model="...")` keyword literal. Reassignments, conditional
+construction, shadowed imports, dynamic models, and indirect clients remain outside the supported
+boundary. Rewrites replace only the matched literal while LibCST preserves syntax, formatting,
+comments, BOM state, and terminal newline style. LibCST code-point positions are converted to the
+core contract's UTF-16 offsets, including lines containing astral code points.
+
+## Developer surfaces
+
+The CLI, composite GitHub Action, and checked-in `migration-audit` skill call the same core scan and
+report pipeline; none reimplements detection in prompts or workflow shell. The action and skill
+build a committed tool snapshot in a private temporary directory, install the frozen pnpm and uv
+dependency sets there, and leave the target repository read-only. Their saved report destination is
+also outside the target. Optional plugin packaging is not implemented because it currently adds no
+distinct packaging value beyond those two surfaces.
+
 ## Deterministic output
 
 Canonical reports exclude wall-clock time, temporary paths, filesystem timestamps, and random IDs. Object keys are sorted, arrays are explicitly ordered by domain keys, paths are repository-relative, output uses LF, and every JSON document ends with one newline.
 
-Actual duration and cache state are runtime telemetry. The CLI writes them to stderr so machine-readable stdout remains byte-stable.
+Actual duration and cache state are runtime telemetry. The CLI writes them to stderr so
+machine-readable stdout remains byte-stable. The TypeScript content-hash cache is process-local and
+is not encoded into a canonical report. Python adapter-smoke performance ledgers are a separate,
+non-canonical evidence type.
 
 Codex audits use canonical structure, canonical proposal hashes, opaque before/after workspace
 commitments, stable reason codes, and redacted evidence. They intentionally include observed token
@@ -124,7 +166,7 @@ Each edit records:
 - a stable finding and edit ID;
 - repository-relative file path;
 - 1-based line and column;
-- 0-based UTF-16 offsets used by TypeScript and JavaScript strings;
+- 0-based UTF-16 offsets used by the shared Node.js core contract;
 - original file SHA-256;
 - expected and replacement text.
 
