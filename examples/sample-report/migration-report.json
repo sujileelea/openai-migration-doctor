@@ -1,0 +1,286 @@
+{
+  "findings": [
+    {
+      "analysis": {
+        "disposition": "supported",
+        "family": "model-snapshot",
+        "feature": "model-snapshot",
+        "pattern": "commonjs"
+      },
+      "automationTier": "A",
+      "confidence": "high",
+      "evidence": "gpt-4o-mini-transcribe-2025-03-20",
+      "fileHash": "5bcb07b396814ecfa6ae6c9b18bf32e1d376f15c3aa14e5a61951f9919dbf216",
+      "graphIssueIds": [],
+      "id": "1fa8ede068e4b794a9c2a3189df1d2aeff5a2d655b4976b537916969f5e2fc28",
+      "kind": "deprecated-usage",
+      "language": "javascript",
+      "location": {
+        "column": 11,
+        "endOffset": 165,
+        "file": "src/index.cjs",
+        "line": 7,
+        "startOffset": 132
+      },
+      "migrationEdgeIds": [
+        "openai.model.gpt-4o-mini-transcribe-2025-03-20.to.2025-12-15"
+      ],
+      "remediation": {
+        "kind": "replace-string-literal",
+        "replacement": "gpt-4o-mini-transcribe-2025-12-15"
+      },
+      "resource": {
+        "id": "gpt-4o-mini-transcribe-2025-03-20",
+        "kind": "model"
+      },
+      "reviewRequired": true,
+      "ruleId": "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20",
+      "schemaVersion": "4.0.0",
+      "severity": "error"
+    },
+    {
+      "abstentionReason": "Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations.",
+      "analysis": {
+        "disposition": "supported",
+        "family": "assistants-api",
+        "feature": "runs",
+        "pattern": "commonjs",
+        "reasonCode": "manual-migration-required"
+      },
+      "automationTier": "C",
+      "confidence": "high",
+      "evidence": "client.beta.threads.runs.create",
+      "fileHash": "5bcb07b396814ecfa6ae6c9b18bf32e1d376f15c3aa14e5a61951f9919dbf216",
+      "graphIssueIds": [],
+      "id": "6a9902ef4be4aa28b4679bef67ad609e7bf00d781c00d2fe5977f769e3d570a0",
+      "kind": "analysis-only",
+      "language": "javascript",
+      "location": {
+        "column": 6,
+        "endOffset": 209,
+        "file": "src/index.cjs",
+        "line": 10,
+        "startOffset": 178
+      },
+      "migrationEdgeIds": [
+        "openai.product.assistants-api.to.responses-and-conversations"
+      ],
+      "remediation": {
+        "kind": "none"
+      },
+      "resource": {
+        "displayName": "Assistants API",
+        "id": "assistants-api",
+        "kind": "product"
+      },
+      "reviewRequired": true,
+      "ruleId": "openai.assistants.api.runs",
+      "schemaVersion": "4.0.0",
+      "severity": "error"
+    },
+    {
+      "abstentionReason": "Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations.",
+      "analysis": {
+        "disposition": "supported",
+        "family": "assistants-api",
+        "feature": "threads",
+        "pattern": "commonjs",
+        "reasonCode": "manual-migration-required"
+      },
+      "automationTier": "C",
+      "confidence": "high",
+      "evidence": "client.beta.threads.runs.create",
+      "fileHash": "5bcb07b396814ecfa6ae6c9b18bf32e1d376f15c3aa14e5a61951f9919dbf216",
+      "graphIssueIds": [],
+      "id": "a304ff6cce65d7054c15c0c7d299a7838e23a31b071c8073907af0b9ddf4e68b",
+      "kind": "analysis-only",
+      "language": "javascript",
+      "location": {
+        "column": 6,
+        "endOffset": 209,
+        "file": "src/index.cjs",
+        "line": 10,
+        "startOffset": 178
+      },
+      "migrationEdgeIds": [
+        "openai.product.assistants-api.to.responses-and-conversations"
+      ],
+      "remediation": {
+        "kind": "none"
+      },
+      "resource": {
+        "displayName": "Assistants API",
+        "id": "assistants-api",
+        "kind": "product"
+      },
+      "reviewRequired": true,
+      "ruleId": "openai.assistants.api.threads",
+      "schemaVersion": "4.0.0",
+      "severity": "error"
+    },
+    {
+      "abstentionReason": "Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations.",
+      "analysis": {
+        "disposition": "supported",
+        "family": "assistants-api",
+        "feature": "streaming",
+        "pattern": "commonjs",
+        "reasonCode": "manual-migration-required"
+      },
+      "automationTier": "C",
+      "confidence": "high",
+      "evidence": "client.beta.threads.runs.create",
+      "fileHash": "5bcb07b396814ecfa6ae6c9b18bf32e1d376f15c3aa14e5a61951f9919dbf216",
+      "graphIssueIds": [],
+      "id": "f9124f7356fdd9b6f899367e3c260c10cbe6c9545cf6703649d7f1ae44dd5267",
+      "kind": "analysis-only",
+      "language": "javascript",
+      "location": {
+        "column": 6,
+        "endOffset": 209,
+        "file": "src/index.cjs",
+        "line": 10,
+        "startOffset": 178
+      },
+      "migrationEdgeIds": [
+        "openai.product.assistants-api.to.responses-and-conversations"
+      ],
+      "remediation": {
+        "kind": "none"
+      },
+      "resource": {
+        "displayName": "Assistants API",
+        "id": "assistants-api",
+        "kind": "product"
+      },
+      "reviewRequired": true,
+      "ruleId": "openai.assistants.feature.streaming",
+      "schemaVersion": "4.0.0",
+      "severity": "warning"
+    }
+  ],
+  "graphIssues": [],
+  "kind": "scan",
+  "migrationEdges": [
+    {
+      "announcedAt": "2026-07-20",
+      "automationTier": "A",
+      "behaviorChanges": [
+        "Transcription output may differ between model snapshots; application-level audio evaluation remains required."
+      ],
+      "from": {
+        "displayName": "GPT-4o mini Transcribe 2025-03-20",
+        "id": "gpt-4o-mini-transcribe-2025-03-20",
+        "kind": "model"
+      },
+      "id": "openai.model.gpt-4o-mini-transcribe-2025-03-20.to.2025-12-15",
+      "languages": [
+        "javascript",
+        "typescript",
+        "python"
+      ],
+      "reviewRequired": true,
+      "shutdownAt": "2027-01-20",
+      "sources": [
+        {
+          "contentHash": "fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962",
+          "retrievedAt": "2026-08-05T08:14:03Z",
+          "title": "Deprecations | OpenAI API",
+          "url": "https://developers.openai.com/api/docs/deprecations"
+        },
+        {
+          "contentHash": "da0d59ea4a9c17f571f28a3a721ed7e45df6bc7bad283f27378905a7f07cab44",
+          "retrievedAt": "2026-08-05T08:14:03Z",
+          "title": "GPT-4o mini Transcribe Model | OpenAI API",
+          "url": "https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe"
+        }
+      ],
+      "to": {
+        "displayName": "GPT-4o mini Transcribe 2025-12-15",
+        "id": "gpt-4o-mini-transcribe-2025-12-15",
+        "kind": "model"
+      }
+    },
+    {
+      "announcedAt": "2025-08-26",
+      "automationTier": "C",
+      "behaviorChanges": [
+        "Execute migrated workflows through the Responses API and keep model selection, instructions, and tool declarations in application-owned configuration instead of reusable Prompt objects.",
+        "Use the Conversations API only when the application requires durable server-side conversation state; Responses can also run without a Conversation.",
+        "Backfill Thread messages to Conversation Items deliberately because OpenAI does not provide an automated Thread-to-Conversation migration tool.",
+        "Replace Run and Run Step orchestration with Responses and Items; application code owns history pruning, tool loops, and retries.",
+        "Review streaming, tool-calling, file-search, and code-interpreter semantics before changing code."
+      ],
+      "from": {
+        "displayName": "Assistants API",
+        "id": "assistants-api",
+        "kind": "product"
+      },
+      "id": "openai.product.assistants-api.to.responses-and-conversations",
+      "languages": [
+        "javascript",
+        "typescript",
+        "python"
+      ],
+      "reviewRequired": true,
+      "shutdownAt": "2026-08-26",
+      "sources": [
+        {
+          "contentHash": "fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962",
+          "retrievedAt": "2026-08-06T05:59:25Z",
+          "title": "Deprecations | OpenAI API",
+          "url": "https://developers.openai.com/api/docs/deprecations"
+        },
+        {
+          "contentHash": "6620f25e6ee958973bc4eaad789ff3f9dc88641c0b69d1166819db5d37ed24e5",
+          "retrievedAt": "2026-08-06T05:59:25Z",
+          "title": "Assistants migration guide | OpenAI API",
+          "url": "https://developers.openai.com/api/docs/assistants/migration"
+        },
+        {
+          "contentHash": "3de9c5fe52bbd457a3b2f187aad7c7319a173a6acff35330bcfea77c566b7971",
+          "retrievedAt": "2026-08-06T05:59:25Z",
+          "title": "Migrate from prompt objects | OpenAI API",
+          "url": "https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object"
+        }
+      ],
+      "to": {
+        "displayName": "Responses API + Conversations API",
+        "id": "responses-and-conversations",
+        "kind": "product"
+      }
+    }
+  ],
+  "repository": {
+    "revision": null
+  },
+  "schemaVersion": "4.0.0",
+  "scope": {
+    "exclusions": [
+      ".git",
+      ".migration-doctor",
+      "build",
+      "coverage",
+      "dist",
+      "node_modules"
+    ],
+    "extensions": [
+      ".cjs",
+      ".cts",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".mts",
+      ".py",
+      ".pyi",
+      ".ts",
+      ".tsx"
+    ]
+  },
+  "sourceLockHash": "3c27c078ca6e5327a89734e2c6e89afdee5d0b6b96cd3114ca19bc7920d3d01e",
+  "summary": {
+    "blocking": 3,
+    "graphIssues": 0,
+    "total": 4
+  }
+}

@@ -1,0 +1,36 @@
+name: Migration rule request
+description: Propose a source-backed OpenAI API migration rule.
+title: "rule: "
+labels: [rule-request]
+body:
+  - type: input
+    id: source
+    attributes:
+      label: Official source URL
+      description: Link to the current official deprecation or migration documentation.
+    validations:
+      required: true
+  - type: input
+    id: surface
+    attributes:
+      label: Source and destination surface
+      description: Deprecated model, API, SDK surface, or product and its documented destination.
+    validations:
+      required: true
+  - type: textarea
+    id: syntax
+    attributes:
+      label: Minimal synthetic syntax examples
+      description: Include positive and negative examples without customer code.
+    validations:
+      required: true
+  - type: dropdown
+    id: automation
+    attributes:
+      label: Proposed automation tier
+      options:
+        - Tier C analysis only
+        - Tier A deterministic edit
+        - Tier B semantic remediation
+    validations:
+      required: true

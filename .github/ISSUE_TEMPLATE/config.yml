@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/sujileelea/openai-migration-doctor/security/advisories/new
+    about: Report security issues privately without source code, secrets, or exploit details in a public issue.

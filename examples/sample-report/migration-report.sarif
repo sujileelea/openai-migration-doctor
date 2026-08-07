@@ -1,0 +1,235 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "results": [
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/index.cjs",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startColumn": 11,
+                  "startLine": 7
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "model:gpt-4o-mini-transcribe-2025-03-20: replace the deprecated value with gpt-4o-mini-transcribe-2025-12-15."
+          },
+          "properties": {
+            "analysisDisposition": "supported",
+            "analysisFeature": "model-snapshot",
+            "analysisPattern": "commonjs",
+            "automationTier": "A",
+            "findingKind": "deprecated-usage",
+            "migrationEdgeIds": [
+              "openai.model.gpt-4o-mini-transcribe-2025-03-20.to.2025-12-15"
+            ],
+            "reviewRequired": true,
+            "sourceLockHash": "3c27c078ca6e5327a89734e2c6e89afdee5d0b6b96cd3114ca19bc7920d3d01e"
+          },
+          "ruleId": "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20"
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/index.cjs",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startColumn": 6,
+                  "startLine": 10
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "product:assistants-api: Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations."
+          },
+          "properties": {
+            "analysisDisposition": "supported",
+            "analysisFeature": "runs",
+            "analysisPattern": "commonjs",
+            "automationTier": "C",
+            "findingKind": "analysis-only",
+            "migrationEdgeIds": [
+              "openai.product.assistants-api.to.responses-and-conversations"
+            ],
+            "reviewRequired": true,
+            "sourceLockHash": "3c27c078ca6e5327a89734e2c6e89afdee5d0b6b96cd3114ca19bc7920d3d01e"
+          },
+          "ruleId": "openai.assistants.api.runs"
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/index.cjs",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startColumn": 6,
+                  "startLine": 10
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "product:assistants-api: Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations."
+          },
+          "properties": {
+            "analysisDisposition": "supported",
+            "analysisFeature": "threads",
+            "analysisPattern": "commonjs",
+            "automationTier": "C",
+            "findingKind": "analysis-only",
+            "migrationEdgeIds": [
+              "openai.product.assistants-api.to.responses-and-conversations"
+            ],
+            "reviewRequired": true,
+            "sourceLockHash": "3c27c078ca6e5327a89734e2c6e89afdee5d0b6b96cd3114ca19bc7920d3d01e"
+          },
+          "ruleId": "openai.assistants.api.threads"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/index.cjs",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startColumn": 6,
+                  "startLine": 10
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "product:assistants-api: Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations."
+          },
+          "properties": {
+            "analysisDisposition": "supported",
+            "analysisFeature": "streaming",
+            "analysisPattern": "commonjs",
+            "automationTier": "C",
+            "findingKind": "analysis-only",
+            "migrationEdgeIds": [
+              "openai.product.assistants-api.to.responses-and-conversations"
+            ],
+            "reviewRequired": true,
+            "sourceLockHash": "3c27c078ca6e5327a89734e2c6e89afdee5d0b6b96cd3114ca19bc7920d3d01e"
+          },
+          "ruleId": "openai.assistants.feature.streaming"
+        }
+      ],
+      "tool": {
+        "driver": {
+          "informationUri": "https://github.com/sujileelea/openai-migration-doctor",
+          "name": "Migration Doctor for OpenAI APIs",
+          "rules": [
+            {
+              "fullDescription": {
+                "text": "Migration Doctor supported finding for model:gpt-4o-mini-transcribe-2025-03-20."
+              },
+              "helpUri": "https://developers.openai.com/api/docs/deprecations",
+              "id": "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20",
+              "properties": {
+                "analysisFamily": "model-snapshot",
+                "automationTier": "A",
+                "confidence": "high",
+                "reviewRequired": true,
+                "tags": [
+                  "openai",
+                  "migration",
+                  "javascript"
+                ]
+              },
+              "shortDescription": {
+                "text": "OpenAI migration: gpt-4o-mini-transcribe-2025-03-20"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Migration Doctor supported finding for product:assistants-api."
+              },
+              "helpUri": "https://developers.openai.com/api/docs/deprecations",
+              "id": "openai.assistants.api.runs",
+              "properties": {
+                "analysisFamily": "assistants-api",
+                "automationTier": "C",
+                "confidence": "high",
+                "reviewRequired": true,
+                "tags": [
+                  "openai",
+                  "migration",
+                  "javascript"
+                ]
+              },
+              "shortDescription": {
+                "text": "OpenAI migration: assistants-api"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Migration Doctor supported finding for product:assistants-api."
+              },
+              "helpUri": "https://developers.openai.com/api/docs/deprecations",
+              "id": "openai.assistants.api.threads",
+              "properties": {
+                "analysisFamily": "assistants-api",
+                "automationTier": "C",
+                "confidence": "high",
+                "reviewRequired": true,
+                "tags": [
+                  "openai",
+                  "migration",
+                  "javascript"
+                ]
+              },
+              "shortDescription": {
+                "text": "OpenAI migration: assistants-api"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Migration Doctor supported finding for product:assistants-api."
+              },
+              "helpUri": "https://developers.openai.com/api/docs/deprecations",
+              "id": "openai.assistants.feature.streaming",
+              "properties": {
+                "analysisFamily": "assistants-api",
+                "automationTier": "C",
+                "confidence": "high",
+                "reviewRequired": true,
+                "tags": [
+                  "openai",
+                  "migration",
+                  "javascript"
+                ]
+              },
+              "shortDescription": {
+                "text": "OpenAI migration: assistants-api"
+              }
+            }
+          ],
+          "semanticVersion": "0.1.0-alpha.1"
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}

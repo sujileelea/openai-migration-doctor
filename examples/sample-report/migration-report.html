@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Migration Doctor Scan</title>
+  <style>
+    :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; background: Canvas; color: CanvasText; }
+    main { width: min(960px, calc(100% - 32px)); margin: 32px auto 64px; }
+    header { border-bottom: 1px solid color-mix(in srgb, CanvasText 24%, Canvas); padding-bottom: 20px; }
+    h1 { font-size: 28px; line-height: 1.2; margin: 0 0 12px; letter-spacing: 0; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; }
+    .status { border-left: 4px solid #26734d; padding-left: 10px; font-weight: 700; }
+    .status.attention { border-left-color: #b54708; }
+    .status.review { border-left-color: #2563a6; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { overflow-wrap: anywhere; }
+    section { margin-top: 24px; }
+    h2 { font-size: 18px; letter-spacing: 0; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, Canvas); padding: 10px 8px; text-align: left; vertical-align: top; }
+    th { font-weight: 700; }
+    a { color: LinkText; }
+    .sources { padding-left: 20px; }
+    .sources li { margin: 10px 0; }
+    pre { margin: 0; padding: 18px; border: 1px solid color-mix(in srgb, CanvasText 24%, Canvas); border-radius: 6px; overflow: auto; white-space: pre-wrap; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Migration Doctor Scan</h1>
+      <div class="meta">
+        <span class="status attention">3 blocking findings (4 total)</span>
+        <span>Schema <code>4.0.0</code></span>
+        <span>Source lock <code>3c27c078ca6e5327a89734e2c6e89afdee5d0b6b96cd3114ca19bc7920d3d01e</code></span>
+      </div>
+    </header>
+    <section aria-labelledby="findings">
+      <h2 id="findings">Findings</h2>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Location</th><th>Rule</th><th>Severity</th><th>Tier</th><th>Human review</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td><code>src/index.cjs:7:11</code></td>
+          <td><code>openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20</code></td>
+          <td>error</td>
+          <td>A</td>
+          <td>required</td>
+        </tr>
+        <tr>
+          <td><code>src/index.cjs:10:6</code></td>
+          <td><code>openai.assistants.api.runs</code></td>
+          <td>error</td>
+          <td>C</td>
+          <td>required</td>
+        </tr>
+        <tr>
+          <td><code>src/index.cjs:10:6</code></td>
+          <td><code>openai.assistants.api.threads</code></td>
+          <td>error</td>
+          <td>C</td>
+          <td>required</td>
+        </tr>
+        <tr>
+          <td><code>src/index.cjs:10:6</code></td>
+          <td><code>openai.assistants.feature.streaming</code></td>
+          <td>warning</td>
+          <td>C</td>
+          <td>required</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+    </section>
+    <section aria-labelledby="official-sources">
+      <h2 id="official-sources">Official sources</h2>
+      <ul class="sources">
+      <li><a href="https://developers.openai.com/api/docs/deprecations" target="_blank" rel="noreferrer">Deprecations | OpenAI API</a><br><code>fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962</code></li>
+      <li><a href="https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe" target="_blank" rel="noreferrer">GPT-4o mini Transcribe Model | OpenAI API</a><br><code>da0d59ea4a9c17f571f28a3a721ed7e45df6bc7bad283f27378905a7f07cab44</code></li>
+      <li><a href="https://developers.openai.com/api/docs/assistants/migration" target="_blank" rel="noreferrer">Assistants migration guide | OpenAI API</a><br><code>6620f25e6ee958973bc4eaad789ff3f9dc88641c0b69d1166819db5d37ed24e5</code></li>
+      <li><a href="https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object" target="_blank" rel="noreferrer">Migrate from prompt objects | OpenAI API</a><br><code>3de9c5fe52bbd457a3b2f187aad7c7319a173a6acff35330bcfea77c566b7971</code></li>
+    </ul>
+    </section>
+    <section aria-labelledby="report-details">
+      <h2 id="report-details">Report details</h2>
+      <pre># Migration Doctor Scan
+
+Source lock: `3c27c078ca6e5327a89734e2c6e89afdee5d0b6b96cd3114ca19bc7920d3d01e`
+
+Blocking findings: **3** / 4
+
+## Findings
+
+### `openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20`
+
+- Location: `src/index.cjs:7:11`
+- Evidence: `gpt-4o-mini-transcribe-2025-03-20`
+- Confidence: high
+- Automation tier: A
+- Analysis family: `model-snapshot`
+- Feature: `model-snapshot`
+- Pattern: `commonjs`
+- Disposition: supported
+- Human review: required
+- Recommended replacement: `gpt-4o-mini-transcribe-2025-12-15`
+- Shutdown: 2027-01-20
+- Official sources:
+  - [Deprecations | OpenAI API](https://developers.openai.com/api/docs/deprecations)
+  - [GPT-4o mini Transcribe Model | OpenAI API](https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe)
+
+### `openai.assistants.api.runs`
+
+- Location: `src/index.cjs:10:6`
+- Evidence: `client.beta.threads.runs.create`
+- Confidence: high
+- Automation tier: C
+- Analysis family: `assistants-api`
+- Feature: `runs`
+- Pattern: `commonjs`
+- Disposition: supported
+- Reason code: `manual-migration-required`
+- Human review: required
+- Abstention: Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations.
+- Shutdown: 2026-08-26
+- Official sources:
+  - [Deprecations | OpenAI API](https://developers.openai.com/api/docs/deprecations)
+  - [Assistants migration guide | OpenAI API](https://developers.openai.com/api/docs/assistants/migration)
+  - [Migrate from prompt objects | OpenAI API](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object)
+
+### `openai.assistants.api.threads`
+
+- Location: `src/index.cjs:10:6`
+- Evidence: `client.beta.threads.runs.create`
+- Confidence: high
+- Automation tier: C
+- Analysis family: `assistants-api`
+- Feature: `threads`
+- Pattern: `commonjs`
+- Disposition: supported
+- Reason code: `manual-migration-required`
+- Human review: required
+- Abstention: Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations.
+- Shutdown: 2026-08-26
+- Official sources:
+  - [Deprecations | OpenAI API](https://developers.openai.com/api/docs/deprecations)
+  - [Assistants migration guide | OpenAI API](https://developers.openai.com/api/docs/assistants/migration)
+  - [Migrate from prompt objects | OpenAI API](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object)
+
+### `openai.assistants.feature.streaming`
+
+- Location: `src/index.cjs:10:6`
+- Evidence: `client.beta.threads.runs.create`
+- Confidence: high
+- Automation tier: C
+- Analysis family: `assistants-api`
+- Feature: `streaming`
+- Pattern: `commonjs`
+- Disposition: supported
+- Reason code: `manual-migration-required`
+- Human review: required
+- Abstention: Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations.
+- Shutdown: 2026-08-26
+- Official sources:
+  - [Deprecations | OpenAI API](https://developers.openai.com/api/docs/deprecations)
+  - [Assistants migration guide | OpenAI API](https://developers.openai.com/api/docs/assistants/migration)
+  - [Migrate from prompt objects | OpenAI API](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object)
+</pre>
+    </section>
+  </main>
+</body>
+</html>

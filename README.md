@@ -2,16 +2,19 @@
 
 > Deterministic detection, source-grounded planning, scoped transformation, and behavioral verification for OpenAI API migrations.
 
-**Project status:** pre-alpha. Local source builds support one deterministic TypeScript and Python
-model-snapshot migration end to end, review-only TypeScript Assistants API analysis, offline
-before/after behavioral contract verification, saved report bundles, and an opt-in Codex remediation
-adapter boundary. No production rule or CLI command routes a plan to Codex, Assistants
-transformation is not implemented, and repository runtime or live-API parity is not evaluated.
+**Project status:** `0.1.0-alpha.1`. Local source builds support one deterministic JavaScript,
+TypeScript, and Python model-snapshot migration end to end; review-only Assistants API analysis in
+all three languages; offline before/after behavioral contract verification; saved report bundles;
+and an opt-in Codex remediation adapter boundary. No production rule or CLI command routes a plan
+to Codex, Assistants transformation is not implemented, and live-API parity is not evaluated.
 
 Migration Doctor is an **unofficial, publicly developed pre-alpha developer tool** licensed under
 the Apache License, Version 2.0. It is not an OpenAI product and is not affiliated with or endorsed
 by OpenAI. External material is governed by the repository's
 [provenance policy](docs/provenance.md).
+
+Start with the [five-minute quickstart](docs/quickstart.md), or inspect the sanitized
+[sample report bundle](examples/sample-report/).
 
 ## Why this exists
 
@@ -41,6 +44,8 @@ Agent Builder and Codex documentation are not current migration-rule source fami
 checked-in audit skill packages the implemented CLI workflow; it does not expand rule coverage.
 
 Official documentation changes over time. Migration Doctor versions reviewed source records and content hashes; it does not vendor the raw documentation pages. It never silently resolves a source disagreement. If two current sources imply incompatible destinations, the finding is routed to human review.
+The separate [source-drift gate](docs/source-drift.md) checks current official Markdown only on an
+explicit scheduled or manual network path and never edits reviewed records automatically.
 
 ## Product thesis
 
@@ -85,6 +90,9 @@ corepack pnpm run doctor report fixtures/python/direct-model-literal \
 corepack pnpm run doctor plan fixtures/typescript/direct-model-literal
 corepack pnpm run doctor migrate fixtures/typescript/direct-model-literal --risk safe
 corepack pnpm run doctor verify fixtures/typescript/direct-model-literal
+# Explicit repository execution is opt-in and accepts argv as JSON, never a shell string.
+corepack pnpm run doctor verify-repository /path/to/repository \
+  --command '["node","--test"]'
 corepack pnpm run doctor scan fixtures/typescript/assistants-direct
 corepack pnpm run doctor verify-behavior \
   fixtures/behavior/assistants-to-responses/contract.json \
@@ -103,13 +111,13 @@ Use `--format json` for canonical machine output. Execution duration and cache s
 stderr so JSON remains byte-stable for the same command inputs and source lock.
 
 Locked source-registry artifacts and offline behavior fixtures remain on their independent schema
-`1.0.0`. Findings and command reports, including behavior reports, use schema `3.0.0`. Semantic
+`1.0.0`. Findings and command reports, including behavior reports, use schema `4.0.0`. Semantic
 plans and Codex adapter records each use a separate schema `1.0.0`. These lifecycles are independent
 so changes to one contract do not silently rewrite another.
 
 ### `scan`
 
-Indexes supported TypeScript and Python files and reports exact evidence without calling an
+Indexes supported JavaScript, TypeScript, and Python files and reports exact evidence without calling an
 external API or changing the repository.
 
 ### `report`
@@ -131,36 +139,56 @@ Produces a deterministic patch preview. A blocked plan produces an empty preview
 
 For a deterministic edit, applies the preview in a temporary tree and verifies the changed-file allowlist, exact literal edit, finding removal, and source-tree immutability. For a blocked analysis-only plan, records unresolved manual work and proves that no automatic transformation occurred. It does not yet run repository-specific tests or behavioral evaluation corpora.
 
+### `verify-repository`
+
+First completes the unchanged deterministic `verify` path. Only after that path passes, it applies
+the frozen preview to a second temporary copy and runs one to eight operator-supplied `--command`
+JSON argv arrays in order, without shell parsing. Commands receive a minimal environment with a
+private temporary home and a 120-second default timeout; only a small host environment allowlist is
+inherited, and ambient credential variables are omitted.
+Each command is trusted repository code: this boundary does not enforce filesystem or network
+isolation. Dependencies excluded from the copy must be prepared by an explicit command.
+
+The canonical JSON report contains argv hashes, status, exit code, and bounded output byte counts,
+not argv or output bodies. Up to 8 KiB per output stream is path- and secret-pattern-redacted on
+stderr, and a command is terminated after 1 MiB of aggregate output. After commands finish, the
+scanner-visible candidate tree must still equal the patched tree; generated content under the
+standard scanner exclusions is outside that hash. Passing arbitrary build or test commands does
+not by itself prove migration behavior, so `runtimeBehaviorVerified` remains `false`. This command
+is unavailable on Windows because descendant process containment is not guaranteed there. The
+ordinary `verify` command never executes repository code.
+
 ### `verify-behavior`
 
 Compares versioned baseline and candidate observations against an offline behavioral contract. The six fixed checks cover text output shape, normalized conversation state, streaming sequence, tool call sequence and arguments, error and retry behavior, and changed-file allowlists. It reads JSON fixtures only, performs no repository execution or network call, and reports that limited evidence scope explicitly.
 
 ### Exit codes
 
-- `0`: no blocking finding, deterministic verification passed, or an offline behavioral contract passed;
+- `0`: no blocking finding, deterministic or explicit repository verification passed, or an offline behavioral contract passed;
 - `1`: command completed and blocking migration findings remain;
 - `2`: invalid invocation or configuration;
 - `3`: analysis was incomplete;
 - `4`: `migration.lock` or a locked artifact is missing or invalid, or the relevant graph is conflicted or cyclic;
-- `5`: patch planning, deterministic verification, or behavioral contract verification failed.
+- `5`: patch planning, deterministic, repository-command, or behavioral contract verification failed.
 
 ## Current rule coverage
 
 | Rule | Scope | Tier | Verification |
 | --- | --- | --- | --- |
-| `gpt-4o-mini-transcribe-2025-03-20` to `gpt-4o-mini-transcribe-2025-12-15` | Direct string literal in a recognized OpenAI TypeScript `audio.transcriptions.create` call | A | Exact edit and file-boundary contracts; runtime transcript parity not verified |
+| `gpt-4o-mini-transcribe-2025-03-20` to `gpt-4o-mini-transcribe-2025-12-15` | Direct string literal in a recognized OpenAI JavaScript or TypeScript `audio.transcriptions.create` call, using ESM or conservative CommonJS construction | A | Exact edit and file-boundary contracts; runtime transcript parity not verified |
 | `gpt-4o-mini-transcribe-2025-03-20` to `gpt-4o-mini-transcribe-2025-12-15` | Exact `model=` string literal in a recognized Python `audio.transcriptions.create` call on a directly assigned `OpenAI` or `AsyncOpenAI` client | A | LibCST rewrite preserves formatting and comments; exact edit and file-boundary contracts; runtime transcript parity not verified |
-| `openai.assistants.api.assistants` | Reviewed direct or statically aliased TypeScript Assistants methods | C | Manual action; no automatic transformation; original tree unchanged |
+| `openai.assistants.api.assistants` | Reviewed JavaScript, TypeScript, or Python Assistants methods rooted in a proven OpenAI client | C | Manual action; no automatic transformation; original tree unchanged |
 | `openai.assistants.api.threads` | Reviewed Thread, Message, composite Thread/Run, and nested Run methods | C | Manual action; no automatic transformation; original tree unchanged |
 | `openai.assistants.api.runs` | Reviewed composite Thread/Run, Run, and Run Step methods | C | Manual action; no automatic transformation; original tree unchanged |
 | `openai.assistants.feature.*` | Streaming, tools, file search, and code interpreter facets bound to a confirmed deprecated call | C | Manual action; runtime semantics unverified |
 
-The model rule intentionally keeps a narrow direct-call boundary. The Python adapter scans `.py`
-and `.pyi`, requires LibCST-proven imported constructors and a direct same-scope client assignment,
-and conservatively skips a candidate beneath a local `openai.py` or `openai/__init__.py`. The
-TypeScript Assistants rules support selected static aliases and route high-signal wrappers,
-detached methods, computed access, indirect invocation, and dynamic facets to explicit
-abstentions. Python Assistants analysis and JavaScript are not implemented. See the public
+The model rule intentionally keeps a narrow direct-call boundary. The compiler adapter scans
+JavaScript and TypeScript ESM plus conservative CommonJS constructor patterns. The Python adapter
+scans `.py` and `.pyi`, requires LibCST-proven imported constructors and one lexically preceding
+visible direct client assignment, and conservatively skips a candidate beneath a local `openai.py` or
+`openai/__init__.py`. Assistants analysis supports reviewed same-file bindings and routes proven
+but unsupported TypeScript/JavaScript patterns and dynamic Python facets to explicit abstentions.
+Cross-file clients and unproven provenance remain silent recall boundaries. See the public
 [Assistants feature and pattern matrix](docs/assistants-rule-matrix.md) and
 [limitations](docs/limitations.md).
 
@@ -169,8 +197,8 @@ abstentions. Python Assistants analysis and JavaScript are not implemented. See 
 ```mermaid
 flowchart LR
     A[Reviewed official-source records] --> B[migration.lock]
-    C[TypeScript or Python repository] --> D[Language adapter]
-    D --> M[TypeScript AST]
+    C[JavaScript, TypeScript, or Python repository] --> D[Language adapter]
+    D --> M[TypeScript compiler API]
     D --> N[Isolated LibCST worker]
     B --> I[Migration graph resolver]
     I --> E[Frozen patch plan]
@@ -185,9 +213,9 @@ flowchart LR
     G --> H[Markdown, JSON, SARIF, and HTML]
 ```
 
-The CLI composes both language adapters with the same core pipeline and reporters. The removable
+The CLI composes all three language adapters with the same core pipeline and reporters. The removable
 Codex adapter remains outside CLI dependency flow; no production Tier B rule routes to it. The
-TypeScript adapter has a process-local content-hash cache, while the Python adapter uses an
+JavaScript and TypeScript adapters share a process-local content-hash cache, while Python uses an
 isolated, sanitized LibCST subprocess. The implemented dependency direction is documented in
 [architecture](docs/architecture.md).
 
@@ -211,8 +239,8 @@ The resolver follows same-language edges until it reaches a destination that is 
 ### 2. Deterministic repository analysis
 
 The analyzers are responsible for evidence, not prose. They confirm one model literal rule in
-TypeScript and Python and seven atomic Assistants feature classes in reviewed TypeScript call
-shapes. Findings include a stable rule ID, exact location, minimized evidence, source-backed graph
+JavaScript, TypeScript, and Python and seven atomic Assistants feature classes in reviewed call
+shapes for those languages. Findings include a stable rule ID, exact location, minimized evidence, source-backed graph
 path, confidence, automation tier, feature, pattern, disposition, and stable abstention code. SDK
 version inference, reusable Prompt detection, cross-file data flow, configuration files, and
 environment-based references remain future work.
@@ -238,7 +266,10 @@ Compilation is necessary but insufficient. Deterministic patch verification prov
 - error and retry behavior;
 - changed-file allowlists.
 
-The offline fixture result is not evidence that a repository produced those observations. Repository test discovery, runtime instrumentation, live API smoke tests, timeout behavior, and token, latency, and cost comparison remain future work.
+The offline fixture result is not evidence that a repository produced those observations.
+`verify-repository` can run explicitly configured commands after deterministic verification, but it
+does not discover tests or classify a command as behavioral evidence. Runtime instrumentation,
+live API smoke-test policy, and token, latency, and cost comparison remain future work.
 
 Text output values and stream payload values are compared by JSON shape. Conversation identity,
 linkage, order, and normalized metadata, tool calls and arguments, and retry attempts are compared
@@ -251,8 +282,8 @@ exactly. Reports contain mismatch paths and input hashes, not primitive output o
 | Area | Target level |
 | --- | --- |
 | TypeScript | Direct Transcriptions snapshot migration plus constrained Assistants analysis implemented |
-| JavaScript | Planned |
-| Python | Direct Transcriptions snapshot analysis, format-preserving transformation, and deterministic verification implemented for `.py` and `.pyi` |
+| JavaScript | ESM and conservative CommonJS direct Transcriptions migration plus constrained Assistants analysis implemented |
+| Python | Direct Transcriptions migration and constrained Assistants analysis implemented for `.py` and `.pyi` |
 | Deprecated model IDs | Deterministic migration when compatibility is established |
 | Assistants to Responses + Conversations | Feature-level analysis and offline behavioral contracts implemented; transformation planned |
 | Streaming and function calling | Assistants-bound detection implemented; transformation planned |
@@ -267,7 +298,7 @@ Coverage is published per rule. A broad claim such as “supports Assistants mig
 
 ```json
 {
-  "schemaVersion": "3.0.0",
+  "schemaVersion": "4.0.0",
   "id": "206aba3c539f65ed2bd4cb216e800722918d5bd76c2c67f75c4251df0a1738f3",
   "kind": "deprecated-usage",
   "language": "typescript",
@@ -310,7 +341,10 @@ The report also records exact offsets and the original file hash so a stale plan
 
 ## Quality targets
 
-These remain release gates beyond the checked-in synthetic corpus:
+The deterministic invariants below are pre-alpha release gates. Precision and recall are reported
+separately for the authored synthetic corpus and for pinned public-repository evaluation; neither
+dataset is presented as evidence for arbitrary repositories. Broader SDK and operating-system
+matrices remain post-pre-alpha evidence unless a release ledger records them explicitly.
 
 - at least **99% precision** on the labeled benchmark corpus;
 - at least **95% recall** on supported patterns;
@@ -319,7 +353,7 @@ These remain release gates beyond the checked-in synthetic corpus:
 - deterministic output for the same repository and source lock;
 - formatting and comments preserved by supported codemods;
 - explicit abstention for unsupported cases;
-- SDK version-matrix tests on macOS and Linux;
+- an explicit SDK and operating-system matrix for every release that claims runtime compatibility;
 - secret and transcript redaction in every reporter.
 
 LLM judgment alone cannot mark a migration as verified.
@@ -358,11 +392,18 @@ one controlled synthetic measurement, not evidence about arbitrary public reposi
 ## Evaluation
 
 The deterministic suite covers schema invariants, byte-exact source locks, graph traversal and
-conflicts, constrained-path abstention, TypeScript and Python model analysis, TypeScript Assistants
-analysis, symbol identity and alias boundaries, stable unsupported-pattern routing, stale plans,
+conflicts, constrained-path abstention, JavaScript, TypeScript, and Python model analysis,
+Assistants analysis in all three languages, symbol identity and alias boundaries, stable
+unsupported-pattern routing, stale plans,
 locale-independent canonical reports, atomic abstention, patch preview, temporary-tree
 verification, isolated behavioral regressions, Codex scope and tool-policy failures, reporter
 redaction, developer surfaces, and CLI exit codes.
+
+The opt-in [public-repository evaluation](docs/public-repository-evaluation.md) compares actual
+findings with hash-bound, manually reviewed labels for three pinned MIT-licensed revisions. Its
+precision and recall are not generalized beyond that corpus. The scheduled
+[SDK compatibility harness](integration/sdk-compatibility/) verifies exact multipart request bytes
+against pinned official Node and Python SDKs without contacting the OpenAI API.
 
 The published Phase 6 ledger contains 120 authored synthetic TypeScript fixture instances derived
 from 42 independent authored templates, with 95 expected findings. Supported cases produced 75 true
@@ -448,6 +489,11 @@ through `5` fail the action. See the checked-in
 [example workflow](.github/workflows/migration-doctor.yml) for exact-pinned upload actions and
 fork-safe SARIF handling.
 
+The supported pre-alpha distribution contract is a local source build or the composite Action at a
+reviewed 40-character commit SHA. Workspace packages remain private and are not published to a
+package registry. GitHub pre-releases provide the reviewed source revision, release notes, and
+source-archive checksums; moving tags are not an acceptable Action pin.
+
 ## Codex skill
 
 The checked-in [`migration-audit` skill](.agents/skills/migration-audit/SKILL.md) tells Codex to
@@ -480,11 +526,15 @@ migration-doctor/
 ├── fixtures/
 │   ├── behavior/
 │   ├── graph/
+│   ├── javascript/
 │   ├── python/
 │   └── typescript/
 ├── docs/
 │   ├── architecture.md
 │   ├── assistants-rule-matrix.md
+│   ├── public-repository-evaluation.md
+│   ├── source-drift.md
+│   ├── quickstart.md
 │   ├── methodology.md
 │   ├── provenance.md
 │   ├── rule-authoring.md
@@ -496,9 +546,12 @@ migration-doctor/
 ├── .github/workflows/migration-doctor.yml
 ├── action.yml
 ├── AGENTS.md
+├── CHANGELOG.md
+├── CONTRIBUTING.md
 ├── LICENSE
 ├── migration.lock
 ├── NOTICE
+├── SECURITY.md
 └── README.md
 ```
 
@@ -514,6 +567,10 @@ The project is quality-gated rather than date-gated:
 6. **Done:** publish the authored synthetic benchmark, budgets, process-local TypeScript cache, and reproducible performance ledger.
 7. **Done:** add the exact-locked LibCST Python adapter through the shared language-adapter contract.
 8. **Done:** publish Markdown, JSON, SARIF, and HTML report bundles, a composite GitHub Action, a rule-authoring guide, and the checked-in Codex audit skill. Plugin packaging was deliberately omitted because it adds no current distribution value.
+9. **Done:** add JavaScript ESM/CommonJS coverage and the reviewed Python Assistants method and facet matrix.
+10. **Done:** add explicit repository-command verification with post-command candidate preservation.
+11. **Done:** add official-source drift, exact SDK loopback, and pinned public-repository evidence gates.
+12. **Done:** prepare the SHA-pinned `0.1.0-alpha.1` source and composite Action pre-release.
 
 Each step must improve the evidence base; feature count alone is not progress.
 
@@ -529,7 +586,8 @@ Each step must improve the evidence base; feature count alone is not progress.
 
 ## Contributing
 
-Follow the [rule-authoring guide](docs/rule-authoring.md). Every migration rule requires:
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[rule-authoring guide](docs/rule-authoring.md). Every migration rule requires:
 
 1. an official source;
 2. positive and negative fixtures;
@@ -540,7 +598,8 @@ Follow the [rule-authoring guide](docs/rule-authoring.md). Every migration rule 
 
 Unless explicitly stated otherwise, intentional contributions are submitted under Apache-2.0 as
 described by Section 5 of the license. Contributors must have the right to submit their work and
-must disclose external material under the [provenance policy](docs/provenance.md).
+must disclose external material under the [provenance policy](docs/provenance.md). Report security
+issues through the private process in [SECURITY.md](SECURITY.md).
 
 ## License
 

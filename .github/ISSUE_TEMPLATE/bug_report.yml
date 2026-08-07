@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible Migration Doctor defect without private source or secrets.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not submit security vulnerabilities or private repository content here. Use private vulnerability reporting for security issues.
+  - type: input
+    id: revision
+    attributes:
+      label: Migration Doctor revision
+      description: Full commit SHA or release tag.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Use synthetic source and include the exact command and exit code.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js, Python, pnpm, and uv versions.
+    validations:
+      required: true
