@@ -1,0 +1,136 @@
+{
+  "aggregate": {
+    "expectedAtomicFindings": 41,
+    "falseNegatives": 0,
+    "falsePositives": 0,
+    "outOfScopeCallSites": 7,
+    "precision": 1,
+    "recall": 1,
+    "repositories": 3,
+    "runtimeCallSites": 32,
+    "supportedCallSites": 25,
+    "truePositives": 41
+  },
+  "claimsBoundary": "These measurements apply only to three pinned public revisions and the manually reviewed declared subset; they do not predict arbitrary-repository quality.",
+  "corpus": "pinned-public-repositories-v1",
+  "repositories": [
+    {
+      "actual": {
+        "abstained": 0,
+        "blocking": 0,
+        "findingLabelHash": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "graphIssues": 0,
+        "supported": 0,
+        "total": 0
+      },
+      "comparison": {
+        "actualLabelHash": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "expectedAtomicFindings": 0,
+        "expectedLabelHash": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "falseNegatives": 0,
+        "falsePositives": 0,
+        "precision": 1,
+        "recall": 1,
+        "truePositives": 0
+      },
+      "groundTruth": {
+        "path": "labels/openai-assistants-quickstart.json",
+        "sha256": "79dbe9725faf7af75dd2a8177a1db4f202903dc454309a92fe63fa7a12c3e7bc"
+      },
+      "id": "openai-assistants-quickstart",
+      "license": {
+        "path": "LICENSE",
+        "sha256": "d831db55645e47ca8e491c5a0e37f1ee744d7b10bf5aa8d50146c795ac0176c0",
+        "spdx": "MIT"
+      },
+      "manualReview": {
+        "note": "All seven runtime call sites import a client constructed in another file, outside the declared same-file boundary.",
+        "outOfScopeCallSites": 7,
+        "runtimeCallSites": 7,
+        "supportedCallSites": 0
+      },
+      "revision": "06fc2d444a5d41b574082080f4c7b2e48156b84f",
+      "url": "https://github.com/openai/openai-assistants-quickstart.git"
+    },
+    {
+      "actual": {
+        "abstained": 2,
+        "blocking": 36,
+        "findingLabelHash": "1e3ac0e077723075e1dac499ea7c6965267350a4fa30aeb4e160cc6993deed43",
+        "graphIssues": 0,
+        "supported": 39,
+        "total": 41
+      },
+      "comparison": {
+        "actualLabelHash": "1e3ac0e077723075e1dac499ea7c6965267350a4fa30aeb4e160cc6993deed43",
+        "expectedAtomicFindings": 41,
+        "expectedLabelHash": "1e3ac0e077723075e1dac499ea7c6965267350a4fa30aeb4e160cc6993deed43",
+        "falseNegatives": 0,
+        "falsePositives": 0,
+        "precision": 1,
+        "recall": 1,
+        "truePositives": 41
+      },
+      "groundTruth": {
+        "path": "labels/openopenai.json",
+        "sha256": "c24f3b2c35c13d0931ab4afe1a3e1fd4f4c98ceef847ac2c4ba28d506bd10459"
+      },
+      "id": "openopenai",
+      "license": {
+        "path": "license",
+        "sha256": "7ecd2338ebfde4d5955a88612325f692c755c33c3123b83f4039dd23f265868b",
+        "spdx": "MIT"
+      },
+      "manualReview": {
+        "note": "Manual review labels 25 direct runtime call sites; two dynamic tool configurations are expected abstentions.",
+        "outOfScopeCallSites": 0,
+        "runtimeCallSites": 25,
+        "supportedCallSites": 25
+      },
+      "revision": "5b6a2a19cadcd3e43013299c53e17f45d54f58ca",
+      "url": "https://github.com/transitive-bullshit/OpenOpenAI.git"
+    },
+    {
+      "actual": {
+        "abstained": 0,
+        "blocking": 0,
+        "findingLabelHash": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "graphIssues": 0,
+        "supported": 0,
+        "total": 0
+      },
+      "comparison": {
+        "actualLabelHash": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "expectedAtomicFindings": 0,
+        "expectedLabelHash": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "falseNegatives": 0,
+        "falsePositives": 0,
+        "precision": 1,
+        "recall": 1,
+        "truePositives": 0
+      },
+      "groundTruth": {
+        "path": "labels/openai-cookbook.json",
+        "sha256": "f9ad715927be1e4d99081cd930e728b1978a39ccef0d8988f924b169da34a914"
+      },
+      "id": "openai-cookbook",
+      "license": {
+        "path": "LICENSE",
+        "sha256": "13df7812ca53ecaae1cb4a868844bb598373047ae1d580e4debfbef1dd5b6915",
+        "spdx": "MIT"
+      },
+      "manualReview": {
+        "note": "Current JavaScript, TypeScript, and Python source files form a real-repository negative control for the locked rules.",
+        "outOfScopeCallSites": 0,
+        "runtimeCallSites": 0,
+        "supportedCallSites": 0
+      },
+      "revision": "4a85c3018d20ceef48bf7549450c567896501bf9",
+      "url": "https://github.com/openai/openai-cookbook.git"
+    }
+  ],
+  "reviewedAt": "2026-08-07",
+  "schemaVersion": "1.0.0",
+  "sourceLockHash": "3c27c078ca6e5327a89734e2c6e89afdee5d0b6b96cd3114ca19bc7920d3d01e",
+  "toolRevision": "3e518a3635e2dbb24bfa145d6720d3518bb339d7"
+}
