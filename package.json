@@ -21,6 +21,7 @@
     "python:sync": "uv sync --project packages/language-python --locked",
     "python:check": "uv run --project packages/language-python --locked python -m compileall -q packages/language-python/python",
     "measure:python": "node packages/language-python/scripts/measure-performance.mjs",
+    "validate:sarif": "tsc -b --pretty false && node scripts/validate-sarif.mjs",
     "doctor": "node packages/cli/dist/index.js"
   },
   "devDependencies": {
@@ -31,6 +32,8 @@
     "@migration-doctor/language-typescript": "workspace:*",
     "@migration-doctor/reporters": "workspace:*",
     "@types/node": "24.3.0",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
     "typescript": "5.9.2",
     "vitest": "3.2.4"
   }

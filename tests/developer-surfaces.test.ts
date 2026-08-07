@@ -295,15 +295,59 @@ describe("developer surfaces", () => {
     const enforcement = workflow.indexOf("Enforce migration findings");
 
     expect(workflow).toContain("uses: ./");
+    expect(workflow).toContain("os: [ubuntu-latest, macos-latest]");
+    expect(workflow).toContain(`runs-on: \${{ matrix.os }}`);
+    expect(workflow).toContain("always() && matrix.os == 'ubuntu-latest'");
+    expect(workflow).toContain(`name: migration-doctor-report-\${{ matrix.os }}`);
     expect(workflow).toContain("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1");
     expect(`${workflow}\n${await projectFile("action.yml")}`).not.toMatch(
       /uses: (?:actions|astral-sh|github)\/[\w/-]+@v\d/u,
     );
-    expect(workflow).toContain("always() && steps.migration-doctor.outputs.sarif-path != ''");
+    expect(workflow).toContain("steps.migration-doctor.outputs.sarif-path != ''");
     expect(workflow).toContain("always() && steps.migration-doctor.outputs.report-directory != ''");
     expect(sarifUpload).toBeGreaterThan(0);
     expect(artifactUpload).toBeGreaterThan(sarifUpload);
     expect(enforcement).toBeGreaterThan(artifactUpload);
+  });
+
+  it("keeps official SARIF validation reproducible and separate from detection", async () => {
+    const [configuration, script, manifest, ci, documentation] = await Promise.all([
+      projectFile("config/sarif-schema-lock.json"),
+      projectFile("scripts/validate-sarif.mjs"),
+      projectFile("package.json"),
+      projectFile(".github/workflows/ci.yml"),
+      projectFile("docs/sarif-validation.md"),
+    ]);
+    const lock = JSON.parse(configuration) as Record<string, unknown>;
+    const packageManifest = JSON.parse(manifest) as {
+      scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const repositoryFiles = requireSuccess(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard"],
+      { cwd: PROJECT_ROOT },
+    );
+
+    expect(lock).toEqual({
+      schemaVersion: "1.0.0",
+      sarifVersion: "2.1.0",
+      url: "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+      sha256: "ad6db49878699b091f3eeb765b6e29e92a34bad4da88664d000c923b549c3a25",
+      maximumBytes: 1_048_576,
+    });
+    expect(packageManifest.scripts["validate:sarif"]).toBe(
+      "tsc -b --pretty false && node scripts/validate-sarif.mjs",
+    );
+    expect(packageManifest.devDependencies.ajv).toBe("8.17.1");
+    expect(packageManifest.devDependencies["ajv-formats"]).toBe("3.0.1");
+    expect(script).toContain("fetch(lock.url");
+    expect(script).toContain('createHash("sha256")');
+    expect(script).toContain("ajv.compile(schema)");
+    expect(ci).toContain("Validate generated SARIF against pinned OASIS schema (network)");
+    expect(ci).toContain("run: pnpm validate:sarif");
+    expect(documentation).toContain("explicit network gate");
+    expect(repositoryFiles).not.toMatch(/(?:^|\/)sarif-schema-2\.1\.0\.json$/mu);
   });
 
   it("runs the action against Python without changing target bytes and preserves status 4 outputs", async () => {

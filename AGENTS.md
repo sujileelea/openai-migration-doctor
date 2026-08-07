@@ -13,6 +13,7 @@ corepack pnpm typecheck
 corepack pnpm lint
 corepack pnpm python:check
 corepack pnpm test
+corepack pnpm validate:sarif
 ```
 
 ## Invariants
@@ -44,6 +45,9 @@ corepack pnpm test
   scope and a trusted repository observation harness.
 - Saved report bundles must use a new directory outside the scanned target. Markdown, canonical
   JSON, SARIF, and static HTML must remain views of the same normalized report.
+- Keep SARIF schema validation as an explicit network gate with official OASIS URL bytes and the
+  expected SHA-256 pinned in `config/sarif-schema-lock.json`. Do not vendor the schema body or add
+  network access to detection.
 - Keep the composite action and checked-in audit skill pinned to frozen dependency inputs and
   isolated temporary tool builds. Do not add plugin packaging without a distinct distribution
   requirement.

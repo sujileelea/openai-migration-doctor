@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "sarifVersion": "2.1.0",
+  "url": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+  "sha256": "ad6db49878699b091f3eeb765b6e29e92a34bad4da88664d000c923b549c3a25",
+  "maximumBytes": 1048576
+}

@@ -11,7 +11,12 @@ permissions:
 
 jobs:
   migration-audit:
-    runs-on: ubuntu-latest
+    name: Migration audit (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
       security-events: write
@@ -30,7 +35,8 @@ jobs:
 
       - name: Upload SARIF
         if: >-
-          always() && steps.migration-doctor.outputs.sarif-path != '' &&
+          always() && matrix.os == 'ubuntu-latest' &&
+          steps.migration-doctor.outputs.sarif-path != '' &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
         uses: github/codeql-action/upload-sarif@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
@@ -41,7 +47,7 @@ jobs:
         if: always() && steps.migration-doctor.outputs.report-directory != ''
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: migration-doctor-report
+          name: migration-doctor-report-${{ matrix.os }}
           path: ${{ steps.migration-doctor.outputs.report-directory }}
           if-no-files-found: error
 

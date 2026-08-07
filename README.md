@@ -410,7 +410,9 @@ Implemented now:
 
 SARIF and HTML are views of the same normalized report as Markdown and JSON. They do not run a
 second analysis or widen supported detection. GitHub annotations are available by uploading the
-saved SARIF file; the HTML document has no script or external asset dependency.
+saved SARIF file; the HTML document has no script or external asset dependency. The separate
+[SARIF validation gate](docs/sarif-validation.md) fetches hash-pinned official OASIS schema bytes
+and does not add network access to detection.
 
 ## GitHub Action
 

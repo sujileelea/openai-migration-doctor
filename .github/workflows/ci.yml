@@ -33,6 +33,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - name: Validate generated SARIF against pinned OASIS schema (network)
+        run: pnpm validate:sarif
       - name: Run Phase 6 regression benchmark
         run: pnpm benchmark --output "$RUNNER_TEMP/phase6-benchmark.json"
       - name: Upload Phase 6 benchmark ledger
