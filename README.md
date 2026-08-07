@@ -473,7 +473,7 @@ steps:
     with:
       persist-credentials: false
   - id: migration-doctor
-    uses: sujileelea/openai-migration-doctor@321bf81810a7ac9fd849513fe94e7eb6ca4c0e6a
+    uses: sujileelea/openai-migration-doctor@f872e95b4485de765766708d7c11a7117707e1b1
     with:
       path: .
   - if: always() && steps.migration-doctor.outputs.exit-code != ''
