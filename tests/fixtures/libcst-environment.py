@@ -8,16 +8,16 @@ import sys
 request = json.load(sys.stdin)
 if "MIGRATION_DOCTOR_PHASE7_SECRET" in os.environ:
     response = {
-        "schemaVersion": "1.0.0",
+        "schemaVersion": "1.1.0",
         "kind": "error",
         "message": "ambient secret reached the worker",
     }
 else:
     response = {
-        "schemaVersion": "1.0.0",
+        "schemaVersion": "1.1.0",
         "kind": "scan-result",
         "files": [
-            {"path": source_file["path"], "matches": []}
+            {"path": source_file["path"], "matches": [], "assistants": []}
             for source_file in request["files"]
         ],
         "worker": {

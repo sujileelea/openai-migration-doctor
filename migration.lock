@@ -30,12 +30,12 @@
     {
       "kind": "migration",
       "path": "data/migrations/gpt-4o-mini-transcribe-2025-03-20.json",
-      "sha256": "5aa64ddc780cac5eb692210254f767d4475d22b09e04041d0f8178959b541f4c"
+      "sha256": "b8ee7d2aac4feaf640790f908ef29cb26b58aa272816c229971676aaf40d815b"
     },
     {
       "kind": "migration",
       "path": "data/migrations/assistants-api-to-responses-and-conversations.json",
-      "sha256": "ff85b0b124fe17e67b06800329e0d34ea0ee0ba89a3df656e5ed86dd0c31b7dd"
+      "sha256": "73b489b63c508fa3031db9d2935fab09cf5022bd7772e4377b461b70d5c612d5"
     }
   ]
 }

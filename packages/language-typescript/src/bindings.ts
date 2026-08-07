@@ -10,7 +10,7 @@ export type BoundSource = {
 
 export type OpenAiClientBinding = {
   constructedAt: number;
-  importPattern: Extract<AnalysisPattern, "direct" | "import-alias">;
+  importPattern: Extract<AnalysisPattern, "commonjs" | "direct" | "import-alias">;
 };
 
 export type PropertyChain = {
@@ -19,7 +19,18 @@ export type PropertyChain = {
 };
 
 function scriptKindFor(file: string): ts.ScriptKind {
-  return path.extname(file) === ".tsx" ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  switch (path.extname(file)) {
+    case ".js":
+    case ".cjs":
+    case ".mjs":
+      return ts.ScriptKind.JS;
+    case ".jsx":
+      return ts.ScriptKind.JSX;
+    case ".tsx":
+      return ts.ScriptKind.TSX;
+    default:
+      return ts.ScriptKind.TS;
+  }
 }
 
 export function createBoundSource(relativeFile: string, content: string): BoundSource {
@@ -27,6 +38,7 @@ export function createBoundSource(relativeFile: string, content: string): BoundS
   const options: ts.CompilerOptions = {
     module: ts.ModuleKind.NodeNext,
     moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    allowJs: true,
     noEmit: true,
     noLib: true,
     noResolve: true,
@@ -67,8 +79,11 @@ export function createBoundSource(relativeFile: string, content: string): BoundS
 export function collectOpenAiConstructors(
   sourceFile: ts.SourceFile,
   checker: ts.TypeChecker,
-): Map<ts.Symbol, Extract<AnalysisPattern, "direct" | "import-alias">> {
-  const constructors = new Map<ts.Symbol, Extract<AnalysisPattern, "direct" | "import-alias">>();
+): Map<ts.Symbol, Extract<AnalysisPattern, "commonjs" | "direct" | "import-alias">> {
+  const constructors = new Map<
+    ts.Symbol,
+    Extract<AnalysisPattern, "commonjs" | "direct" | "import-alias">
+  >();
   for (const statement of sourceFile.statements) {
     if (
       !ts.isImportDeclaration(statement) ||
@@ -102,7 +117,111 @@ export function collectOpenAiConstructors(
       }
     }
   }
+
+  if (!hasLocalRequireBinding(sourceFile)) {
+    for (const statement of sourceFile.statements) {
+      if (
+        !ts.isVariableStatement(statement) ||
+        !isConstDeclarationList(statement.declarationList)
+      ) {
+        continue;
+      }
+      for (const declaration of statement.declarationList.declarations) {
+        const requireKind = openAiRequireKind(declaration.initializer);
+        if (!requireKind) {
+          continue;
+        }
+        if (ts.isIdentifier(declaration.name)) {
+          const symbol = checker.getSymbolAtLocation(declaration.name);
+          if (symbol) {
+            constructors.set(symbol, "commonjs");
+          }
+          continue;
+        }
+        if (ts.isObjectBindingPattern(declaration.name) && requireKind === "namespace") {
+          for (const element of declaration.name.elements) {
+            const importedName =
+              element.propertyName?.getText(sourceFile) ?? element.name.getText(sourceFile);
+            if (
+              element.dotDotDotToken ||
+              importedName !== "OpenAI" ||
+              !ts.isIdentifier(element.name)
+            ) {
+              continue;
+            }
+            const symbol = checker.getSymbolAtLocation(element.name);
+            if (symbol) {
+              constructors.set(symbol, "commonjs");
+            }
+          }
+        }
+      }
+    }
+  }
   return constructors;
+}
+
+function isConstDeclarationList(node: ts.VariableDeclarationList): boolean {
+  return (node.flags & ts.NodeFlags.Const) !== 0;
+}
+
+function isOpenAiRequireCall(node: ts.Expression | undefined): node is ts.CallExpression {
+  if (!node || !ts.isCallExpression(node)) {
+    return false;
+  }
+  const argument = node.arguments[0];
+  return Boolean(
+    ts.isIdentifier(node.expression) &&
+      node.expression.text === "require" &&
+      node.arguments.length === 1 &&
+      argument &&
+      ts.isStringLiteral(argument) &&
+      argument.text === "openai",
+  );
+}
+
+function openAiRequireKind(
+  node: ts.Expression | undefined,
+): "constructor" | "namespace" | undefined {
+  if (!node) {
+    return undefined;
+  }
+  if (isOpenAiRequireCall(node)) {
+    return "namespace";
+  }
+  if (
+    ts.isPropertyAccessExpression(node) &&
+    (node.name.text === "default" || node.name.text === "OpenAI") &&
+    isOpenAiRequireCall(node.expression)
+  ) {
+    return "constructor";
+  }
+  return undefined;
+}
+
+function hasLocalRequireBinding(sourceFile: ts.SourceFile): boolean {
+  let found = false;
+  function visit(node: ts.Node): void {
+    if (found) {
+      return;
+    }
+    if (
+      (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isFunctionDeclaration(node)) &&
+      node.name &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "require"
+    ) {
+      found = true;
+      return;
+    }
+    if (ts.isImportDeclaration(node) && node.importClause?.name?.text === "require") {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile);
+  return found;
 }
 
 export function collectOpenAiTypeSymbols(
@@ -146,7 +265,7 @@ export function collectOpenAiTypeSymbols(
 export function collectOpenAiClients(
   sourceFile: ts.SourceFile,
   checker: ts.TypeChecker,
-  constructors: Map<ts.Symbol, Extract<AnalysisPattern, "direct" | "import-alias">>,
+  constructors: Map<ts.Symbol, Extract<AnalysisPattern, "commonjs" | "direct" | "import-alias">>,
 ): Map<ts.Symbol, OpenAiClientBinding> {
   const clients = new Map<ts.Symbol, OpenAiClientBinding>();
 

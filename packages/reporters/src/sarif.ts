@@ -7,7 +7,7 @@ import {
 
 const SARIF_SCHEMA =
   "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json";
-const TOOL_VERSION = "0.0.0";
+const TOOL_VERSION = "0.1.0-alpha.1";
 
 function findingsFor(report: Report): Finding[] {
   return "findings" in report ? report.findings : [];

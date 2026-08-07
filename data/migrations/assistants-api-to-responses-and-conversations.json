@@ -34,7 +34,7 @@
         "contentHash": "3de9c5fe52bbd457a3b2f187aad7c7319a173a6acff35330bcfea77c566b7971"
       }
     ],
-    "languages": ["typescript"],
+    "languages": ["javascript", "typescript", "python"],
     "behaviorChanges": [
       "Execute migrated workflows through the Responses API and keep model selection, instructions, and tool declarations in application-owned configuration instead of reusable Prompt objects.",
       "Use the Conversations API only when the application requires durable server-side conversation state; Responses can also run without a Conversation.",

@@ -62,7 +62,7 @@ export type BudgetCheck = {
 export type Phase6BenchmarkLedger = {
   schemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
   kind: "phase6-benchmark";
-  toolVersion: "0.0.0";
+  toolVersion: "0.1.0-alpha.1";
   commitSha: string;
   repositoryWorkingTreeClean: boolean;
   sourceLockHash: string;
@@ -539,7 +539,7 @@ export async function runPhase6Benchmark(options: {
     return {
       schemaVersion: BENCHMARK_SCHEMA_VERSION,
       kind: "phase6-benchmark",
-      toolVersion: "0.0.0",
+      toolVersion: "0.1.0-alpha.1",
       commitSha: repositoryState.revision,
       repositoryWorkingTreeClean: repositoryState.clean,
       sourceLockHash: registry.sourceLockHash,

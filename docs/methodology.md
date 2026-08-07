@@ -97,9 +97,10 @@ requires semantic review of conversation state, streaming, and tool behavior.
 
 ## Model automation boundary
 
-For TypeScript, Tier A applies only when the AST proves all of the following:
+For JavaScript and TypeScript, Tier A applies only when the compiler API proves all of the following:
 
-1. `OpenAI` was imported from `openai` in the same file.
+1. `OpenAI` was imported from `openai` or constructed through a reviewed CommonJS
+   `require("openai")` form in the same file.
 2. A local client was directly constructed with that import.
 3. The call path is exactly `client.audio.transcriptions.create(...)`.
 4. The first argument is an object literal.
@@ -118,17 +119,21 @@ following:
 
 A candidate beneath a local `openai.py` or `openai/__init__.py` is skipped conservatively because
 the external SDK import cannot be proved. Conditional clients, wrappers, aliases, dynamic model
-values, starred arguments, and Python Assistants calls are unsupported. LibCST rewrites only the
-matched literal and tests require formatting, comments, BOM state, newline style, and UTF-16 source
-offsets to remain correct.
+values, and starred arguments are unsupported. LibCST rewrites only the matched literal and tests
+require formatting, comments, BOM state, newline style, and UTF-16 source offsets to remain
+correct. The same worker inventories reviewed direct Python Assistants calls as Tier C without
+transforming them.
 
 ## Assistants analysis boundary
 
-The TypeScript analyzer requires an exact `openai` import and either a same-file directly
-constructed `const` client or an explicitly typed wrapper parameter. It matches only reviewed
+The JavaScript and TypeScript analyzers require an exact `openai` import or reviewed CommonJS
+constructor and either a same-file directly constructed `const` client or an explicitly typed
+wrapper parameter. They match only reviewed
 Assistants, Threads, Messages, Runs, and Run Steps methods. Direct and statically traceable `const`
 client or resource aliases are supported; typed wrappers, detached methods, computed or optional
 members, and indirect invocation abstain. Request-derived facets require literal inline evidence.
+The Python analyzer requires an imported direct client assignment; it abstains on proven dynamic
+facets and unsupported methods while leaving unproven aliases and cross-file receivers silent.
 
 Every confirmed or abstained Assistants result is Tier C with no remediation. Evidence is the
 callee expression only. Planning resolves the locked product target and repeats its behavior

@@ -30,6 +30,10 @@ corepack pnpm validate:sarif
 - After editing a locked artifact, recompute its SHA-256 and update `migration.lock` in the same change.
 - Canonical JSON must not contain duration, current time, absolute paths, temporary paths, or random IDs. Runtime telemetry belongs on stderr.
 - `migrate` remains preview-only. Deterministic `verify` may write only to a temporary copy.
+- Keep repository command execution on the separate opt-in `verify-repository` surface. Require
+  explicit JSON argv, successful deterministic verification first, `shell: false`, a minimal
+  non-credential environment, bounded output, and timeouts. Never infer commands or set
+  `runtimeBehaviorVerified` from an arbitrary command result.
 - Never report runtime behavior as verified without repository-specific behavioral evidence.
 - Codex remains opt-in and package-local: require a Tier B plan that freezes the Git revision,
   source preimages, instructions, complete migration edges, behavior inputs, and trusted semantic

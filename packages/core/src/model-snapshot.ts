@@ -1,7 +1,12 @@
 import { AnalysisError } from "./errors.js";
 import type { MigrationResolution } from "./graph.js";
 import { sha256 } from "./hash.js";
-import { type Finding, type MigrationLanguage, REPORT_SCHEMA_VERSION } from "./schemas.js";
+import {
+  type AnalysisPattern,
+  type Finding,
+  type MigrationLanguage,
+  REPORT_SCHEMA_VERSION,
+} from "./schemas.js";
 
 export type ModelSnapshotResolution = Exclude<MigrationResolution, { status: "unmapped" }>;
 
@@ -61,6 +66,7 @@ export function createModelSnapshotFinding(request: {
   language: MigrationLanguage;
   ruleId: string;
   sourceModel: string;
+  analysisPattern?: AnalysisPattern;
   relativeFile: string;
   content: string;
   location: Finding["location"];
@@ -96,7 +102,7 @@ export function createModelSnapshotFinding(request: {
     analysis: {
       family: "model-snapshot",
       feature: "model-snapshot",
-      pattern: "direct",
+      pattern: request.analysisPattern ?? "direct",
       disposition: "supported",
     },
     ...deriveModelSnapshotFindingPolicy(request.resolution),

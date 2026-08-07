@@ -2,6 +2,7 @@ import {
   type AnalysisFeature,
   type AnalysisPattern,
   type Finding,
+  type MigrationLanguage,
   type MigrationResolution,
   REPORT_SCHEMA_VERSION,
   type ResourceRef,
@@ -20,7 +21,7 @@ export const ASSISTANTS_RESOURCE: ResourceRef = {
 type AssistantsResolution = Exclude<MigrationResolution, { status: "unmapped" }>;
 type SupportedPattern = Extract<
   AnalysisPattern,
-  "direct" | "import-alias" | "property-alias" | "client-alias"
+  "commonjs" | "direct" | "import-alias" | "property-alias" | "client-alias"
 >;
 
 type ReceiverBinding = {
@@ -543,6 +544,7 @@ function collectReceivers(
 }
 
 function createFindings(
+  language: MigrationLanguage,
   relativeFile: string,
   content: string,
   sourceFile: ts.SourceFile,
@@ -575,7 +577,7 @@ function createFindings(
         ].join("\u0000"),
       ),
       kind: result.disposition === "supported" ? "analysis-only" : "unsupported-pattern",
-      language: "typescript",
+      language,
       resource: ASSISTANTS_RESOURCE,
       ruleId,
       severity:
@@ -610,6 +612,7 @@ function createFindings(
 }
 
 export function scanAssistantsSource(
+  language: MigrationLanguage,
   relativeFile: string,
   content: string,
   sourceFile: ts.SourceFile,
@@ -631,7 +634,7 @@ export function scanAssistantsSource(
       return;
     }
     findings.push(
-      ...createFindings(relativeFile, content, sourceFile, callee, resolution, results),
+      ...createFindings(language, relativeFile, content, sourceFile, callee, resolution, results),
     );
   }
 

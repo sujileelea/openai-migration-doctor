@@ -15,6 +15,7 @@ export type BenchmarkFindingLabel = {
     | "code-interpreter";
   pattern:
     | "direct"
+    | "commonjs"
     | "import-alias"
     | "property-alias"
     | "client-alias"

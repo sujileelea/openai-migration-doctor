@@ -8,6 +8,7 @@ import {
   FindingSchema,
   type LanguageAdapter,
   listRepositoryFiles,
+  type MigrationLanguage,
   resolveMigrationPath,
   resolveRepositoryFile,
   SemanticVerifierSchema,
@@ -28,7 +29,8 @@ import type { TypeScriptAnalysisCache } from "./cache.js";
 const SOURCE_MODEL = "gpt-4o-mini-transcribe-2025-03-20";
 const RULE_ID = "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20";
 const TYPESCRIPT_EXTENSIONS = [".cts", ".mts", ".ts", ".tsx"] as const;
-const ANALYSIS_CACHE_VERSION = "typescript-analysis-v2";
+const JAVASCRIPT_EXTENSIONS = [".cjs", ".js", ".jsx", ".mjs"] as const;
+const ANALYSIS_CACHE_VERSION = "typescript-analysis-v3";
 
 export type TypeScriptScanTelemetry = {
   cacheEnabled: boolean;
@@ -174,6 +176,7 @@ export function verifyTypeScriptTranscriptionModelMigration(request: {
 }
 
 function scanSource(
+  language: MigrationLanguage,
   relativeFile: string,
   content: string,
   resolution: Parameters<typeof createModelSnapshotFinding>[0]["resolution"],
@@ -217,9 +220,12 @@ function scanSource(
           const position = sourceFile.getLineAndCharacterOfPosition(startOffset);
           findings.push(
             createModelSnapshotFinding({
-              language: "typescript",
+              language,
               ruleId: RULE_ID,
               sourceModel: SOURCE_MODEL,
+              ...(client.importPattern === "commonjs"
+                ? { analysisPattern: client.importPattern }
+                : {}),
               relativeFile,
               content,
               resolution,
@@ -242,9 +248,9 @@ function scanSource(
   return findings;
 }
 
-export class TypeScriptLanguageAdapter implements LanguageAdapter {
-  readonly id = "typescript";
-  readonly extensions = TYPESCRIPT_EXTENSIONS;
+abstract class CompilerApiLanguageAdapter implements LanguageAdapter {
+  abstract readonly id: "javascript" | "typescript";
+  abstract readonly extensions: readonly string[];
   readonly #cache: TypeScriptAnalysisCache | undefined;
   #lastScanTelemetry: TypeScriptScanTelemetry = {
     cacheEnabled: false,
@@ -254,7 +260,7 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
     parsedFiles: 0,
   };
 
-  constructor(options: TypeScriptLanguageAdapterOptions = {}) {
+  protected constructor(options: TypeScriptLanguageAdapterOptions = {}) {
     this.#cache = options.cache;
   }
 
@@ -266,12 +272,12 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
     const modelResolution = resolveMigrationPath(
       request.migrationEdges,
       { kind: "model", id: SOURCE_MODEL },
-      "typescript",
+      this.id,
     );
     const assistantsResolution = resolveMigrationPath(
       request.migrationEdges,
       ASSISTANTS_RESOURCE,
-      "typescript",
+      this.id,
     );
 
     const extensions = new Set<string>(this.extensions);
@@ -279,7 +285,7 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
     try {
       files = await listRepositoryFiles(request.repositoryRoot, extensions);
     } catch (error) {
-      throw new AnalysisError("Unable to enumerate candidate TypeScript files.", { cause: error });
+      throw new AnalysisError(`Unable to enumerate candidate ${this.id} files.`, { cause: error });
     }
     const telemetry: TypeScriptScanTelemetry = {
       cacheEnabled: this.#cache !== undefined,
@@ -301,7 +307,7 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
               "utf8",
             );
           } catch (error) {
-            throw new AnalysisError(`Unable to read candidate TypeScript file ${relativeFile}.`, {
+            throw new AnalysisError(`Unable to read candidate ${this.id} file ${relativeFile}.`, {
               cause: error,
             });
           }
@@ -309,9 +315,13 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
             this.#cache === undefined
               ? undefined
               : sha256(
-                  [ANALYSIS_CACHE_VERSION, migrationEdgesHash, relativeFile, sha256(content)].join(
-                    "\u0000",
-                  ),
+                  [
+                    ANALYSIS_CACHE_VERSION,
+                    this.id,
+                    migrationEdgesHash,
+                    relativeFile,
+                    sha256(content),
+                  ].join("\u0000"),
                 );
           if (cacheKey !== undefined && this.#cache !== undefined) {
             const cached = await this.#cache.get(cacheKey);
@@ -348,13 +358,14 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
           if (hasModelCandidate) {
             if (modelResolution.status === "unmapped") {
               throw new AnalysisError(
-                `No locked TypeScript migration edge exists for ${SOURCE_MODEL}.`,
+                `No locked ${this.id} migration edge exists for ${SOURCE_MODEL}.`,
               );
             }
-            findings.push(...scanSource(relativeFile, content, modelResolution, bound));
+            findings.push(...scanSource(this.id, relativeFile, content, modelResolution, bound));
           }
           if (hasAssistantsCandidate && (clients.size > 0 || openAiTypes.size > 0)) {
             const assistants = scanAssistantsSource(
+              this.id,
               relativeFile,
               content,
               bound.sourceFile,
@@ -365,7 +376,7 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
             );
             if (assistants.matched && assistantsResolution.status === "unmapped") {
               throw new AnalysisError(
-                "No locked TypeScript migration edge exists for the Assistants API.",
+                `No locked ${this.id} migration edge exists for the Assistants API.`,
               );
             }
             findings.push(...assistants.findings);
@@ -396,5 +407,23 @@ export class TypeScriptLanguageAdapter implements LanguageAdapter {
       findings: normalizedFindings,
       graphIssues,
     };
+  }
+}
+
+export class TypeScriptLanguageAdapter extends CompilerApiLanguageAdapter {
+  readonly id = "typescript" as const;
+  readonly extensions = TYPESCRIPT_EXTENSIONS;
+
+  constructor(options: TypeScriptLanguageAdapterOptions = {}) {
+    super(options);
+  }
+}
+
+export class JavaScriptLanguageAdapter extends CompilerApiLanguageAdapter {
+  readonly id = "javascript" as const;
+  readonly extensions = JAVASCRIPT_EXTENSIONS;
+
+  constructor(options: TypeScriptLanguageAdapterOptions = {}) {
+    super(options);
   }
 }

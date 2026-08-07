@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { BehaviorVerifyReport } from "./behavior.js";
 
 export const SOURCE_SCHEMA_VERSION = "1.0.0" as const;
-export const REPORT_SCHEMA_VERSION = "3.0.0" as const;
+export const REPORT_SCHEMA_VERSION = "4.0.0" as const;
 export const SEMANTIC_PLAN_SCHEMA_VERSION = "1.0.0" as const;
 
 export const DETERMINISTIC_VERIFICATION_CONTRACTS = [
@@ -28,7 +28,7 @@ export const SEMANTIC_VERIFICATION_CONTRACTS = [
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
 const IsoTimestampSchema = z.string().datetime({ offset: true });
-export const MigrationLanguageSchema = z.enum(["typescript", "python"]);
+export const MigrationLanguageSchema = z.enum(["javascript", "typescript", "python"]);
 export const AnalysisFamilySchema = z.enum(["model-snapshot", "assistants-api"]);
 export const AnalysisFeatureSchema = z.enum([
   "model-snapshot",
@@ -42,6 +42,7 @@ export const AnalysisFeatureSchema = z.enum([
 ]);
 export const AnalysisPatternSchema = z.enum([
   "direct",
+  "commonjs",
   "import-alias",
   "property-alias",
   "client-alias",

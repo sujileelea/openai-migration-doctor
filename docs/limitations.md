@@ -1,25 +1,27 @@
 # Limitations
 
 Migration Doctor is pre-alpha. It supports one deterministic model-snapshot replacement for
-constrained TypeScript and Python subsets and review-only Assistants API analysis for a constrained
-TypeScript subset. It also contains a programmatic Codex remediation boundary, but no production
-rule or CLI command can invoke it.
+constrained JavaScript, TypeScript, and Python subsets and review-only Assistants API analysis for
+constrained subsets of all three languages. It also contains a programmatic Codex remediation
+boundary, but no production rule or CLI command can invoke it.
 
 ## Detection
 
-- TypeScript model and Assistants analysis covers `.ts`, `.tsx`, `.mts`, and `.cts`.
-- The TypeScript model-snapshot rule requires a runtime OpenAI import, directly constructed `const`
+- JavaScript analysis covers `.js`, `.jsx`, `.mjs`, and `.cjs`; TypeScript analysis covers `.ts`,
+  `.tsx`, `.mts`, and `.cts`.
+- The compiler-API model-snapshot rule requires a runtime OpenAI ESM import or one of the reviewed
+  CommonJS `require("openai")` constructor forms, a directly constructed `const`
   client, exact `audio.transcriptions.create` call, inline request, and direct string-literal
   `model` in the same file.
 - Assistants analysis recognizes the reviewed method and feature matrix documented in
-  [Assistants API TypeScript rule matrix](assistants-rule-matrix.md). It supports renamed imports
+  [Assistants API rule matrix](assistants-rule-matrix.md). It supports renamed imports
   and statically traceable same-file `const` client, namespace, and resource aliases.
 - High-signal typed wrappers, detached method aliases, computed or optional access, indirect
   invocation, and dynamic request facets produce Tier C abstentions with stable reason codes.
-- Cross-file clients, factories, CommonJS construction, mutable or destructured aliases, untyped
-  wrappers, constructor-injected or class-field receivers, namespace imports, dynamic namespace
-  selection, JavaScript, and Realtime calls remain silent because OpenAI provenance or the
-  deprecated surface cannot be established safely.
+- Cross-file clients, factories, CommonJS forms outside the reviewed constructor set, mutable
+  aliases, untyped wrappers, constructor-injected or class-field receivers, dynamic namespace
+  selection, and Realtime calls remain silent because OpenAI provenance or the deprecated surface
+  cannot be established safely. A local `require` binding disables CommonJS provenance proof.
 - Feature extraction is intentionally literal. Configuration assembled through variables, helper
   calls, spreads, computed keys, or conditionals is not treated as confirmed tool or streaming use.
 - Python model analysis covers strict UTF-8 `.py` and `.pyi` files. Invalid UTF-8 and candidate
@@ -31,15 +33,20 @@ rule or CLI command can invoke it.
   conditional clients, wrappers, indirect clients, dynamic models, starred arguments, and
   non-literal spellings are not detected.
 - The Python adapter retains at most 4,096 `.py` and `.pyi` paths, reads those files sequentially,
-  and fails closed when any source is larger than 2 MiB. Source-model candidates are capped at 256
-  files and 16 MiB total, including candidates later excluded for local-module shadowing. The direct
+  and fails closed when any source is larger than 2 MiB. Source-model or Assistants lexical
+  candidates are capped together at 256 files and 16 MiB total, including candidates later excluded
+  for local-module shadowing. The direct
   LibCST scan and rewrite bridge enforces the same content budgets and a 64 MiB serialized-input cap
   before building the complete worker request. Repositories above a budget must be narrowed before
   analysis; files are never silently skipped to fit. Directory enumeration still materializes one
   directory's metadata entries at a time, so the matching-path cap is not a total process-heap bound.
   The pre-read stat and post-read byte checks reject size growth, but do not make same-size source
   replacement by another same-user process an isolation boundary.
-- Python Assistants analysis and JavaScript are not implemented.
+- Python Assistants analysis recognizes the reviewed direct method matrix on proven `OpenAI` and
+  `AsyncOpenAI` clients and static message-attachment tool declarations. A client may be a single
+  lexically preceding visible binding, including a closure binding. Direct dynamic facets and
+  unsupported methods abstain; forward bindings, resource aliases, detached methods, factories,
+  cross-file clients, and dynamic members remain silent.
 
 These constraints favor precision over recall. In the authored Phase 6 TypeScript corpus, 75
 supported and 20 abstention labels had no false positive or false negative. Those exact results
@@ -55,6 +62,28 @@ claim for arbitrary repositories. See the
 - `verify` uses a temporary directory copy, not a Git worktree.
 - A blocked analysis-only verification proves that no automatic transformation occurred and the
   original repository stayed unchanged; it deliberately fails `manual_migration_resolved`.
+- `verify-repository` runs only explicitly supplied JSON argv arrays, and only after the ordinary
+  deterministic verification passes. It does not discover commands. The second candidate copy
+  excludes nested symlinks, `node_modules`, build output, coverage, and the other scanner
+  exclusions, so dependency preparation must itself be an explicit command when required.
+- Repository commands use no shell and inherit only a minimal non-credential environment with a
+  private temporary home. They are still trusted local code: Migration Doctor does not enforce
+  filesystem or network isolation around them. The host sandbox or CI runner must supply that
+  boundary for untrusted repositories.
+- Repository-command output is killed after 1 MiB, retained only up to 8 KiB per stream for
+  redacted stderr diagnostics, and omitted from the canonical report. Pattern redaction is a
+  defense-in-depth filter, not a proof that arbitrary command output contains no sensitive data.
+- Repository verification re-hashes the scanner-visible candidate tree after every command has
+  finished and fails if it differs from the patched tree. The tree hash excludes `.git`,
+  `.migration-doctor`, `build`, `coverage`, `dist`, and `node_modules`, so the report names this
+  scope explicitly rather than claiming every path is unchanged.
+- `verify-repository` is unavailable on Windows because the current implementation cannot
+  guarantee descendant process-tree termination there. On POSIX systems, commands run in a new
+  process group and any remaining group members are terminated at command completion.
+- Temporary cleanup rechecks the directory device and inode captured before repository execution
+  and declines cleanup if the pathname no longer names that directory. The subsequent recursive
+  removal is still not an adversarial same-user isolation boundary because Node does not expose a
+  directory-descriptor-relative recursive delete.
 - `verify-behavior` compares supplied JSON observations only. It does not run the source or target
   integration, discover tests, capture SDK events, or establish that a repository emitted the
   observations.
@@ -66,9 +95,10 @@ claim for arbitrary repositories. See the
 - A behavior observation represents one logical retry invocation per operation name. Representing
   repeated independent invocations of the same operation requires separate observations; an
   invocation ID is not yet modeled.
-- Repository build, typecheck, lint, unit tests, and integration tests are not discovered or executed.
-- No audio or live application corpus is executed, so repository runtime behavior remains
-  unverified even when an offline fixture contract passes.
+- Repository build, typecheck, lint, unit tests, and integration tests are not discovered. They run
+  only when the operator opts into `verify-repository` and supplies their exact argv.
+- No built-in audio or live application corpus is executed, so repository runtime behavior remains
+  unverified by Migration Doctor even when an offline fixture or repository command passes.
 - SDK version compatibility is not inferred. Post-patch repository checks will be required before
   that claim is possible.
 - The TypeScript content-hash cache is process-local. It is not a persistent cross-run or
@@ -141,7 +171,9 @@ claim for arbitrary repositories. See the
   are implemented and covered with clearly synthetic graph fixtures.
 - SDK constraint strings are not treated as repository evidence. Until package/version/location proofs are structured and validated, any relevant constrained edge causes an `unverified-constraint` abstention.
 - Graph diagnostics are currently emitted only for resource families evaluated by an installed language adapter; there is no repository-wide rule-independent graph audit command yet.
-- Source refresh is manual.
+- Reviewed source updates remain manual. A separate network-enabled drift gate can detect changed
+  official page bytes, but it never updates claims, source records, or `migration.lock` without
+  human review.
 - Markdown, canonical JSON, SARIF 2.1.0, and script-free static HTML are implemented for pipeline
   reports. `report` saves all four only to a new directory outside the scanned repository.
 - SARIF contains source locations and official source links for supported findings, but code-host
@@ -186,6 +218,9 @@ claim for arbitrary repositories. See the
   artifact includes the project license and NOTICE plus every notice required by bundled material.
 - The composite GitHub Action and checked-in `migration-audit` Codex skill build from committed
   source in temporary directories; they are not a package-registry distribution.
+- The supported pre-alpha distribution is a local source build or the composite Action pinned to a
+  reviewed 40-character commit SHA. GitHub pre-releases identify reviewed revisions and publish
+  source-archive checksums; they do not make workspace packages registry-compatible.
 - Optional plugin packaging is not implemented because the current skill and action cover the
   validated workflows without a distinct plugin packaging benefit.
 - Production Codex-assisted rules and CLI orchestration remain unimplemented.

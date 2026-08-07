@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
   chmod,
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -16,7 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { MigrationEdge } from "@migration-doctor/core";
+import { hashRepositoryTree, type MigrationEdge } from "@migration-doctor/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   fixturePath,
@@ -133,7 +134,7 @@ describe("CLI exit-code contract", () => {
 
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      schemaVersion: "3.0.0",
+      schemaVersion: "4.0.0",
       kind: "behavior-verify",
       evidenceScope: "offline-fixture",
       liveApiUsed: false,
@@ -522,6 +523,249 @@ describe("CLI exit-code contract", () => {
       verification: { passed: true, runtimeBehaviorVerified: false },
     });
   });
+
+  it("keeps default deterministic verification execution-free", async () => {
+    const container = await mkdtemp(path.join(tmpdir(), "migration-doctor-no-exec-"));
+    temporaryDirectories.push(container);
+    const repository = path.join(container, "repository");
+    const sentinel = path.join(container, "repository-script-ran.txt");
+    await cp(fixturePath("direct-model-literal"), repository, { recursive: true });
+    await writeFile(
+      path.join(repository, "package.json"),
+      JSON.stringify({
+        scripts: {
+          test: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(
+            `require("node:fs").writeFileSync(${JSON.stringify(sentinel)}, "ran")`,
+          )}`,
+        },
+      }),
+    );
+
+    const result = runCli(["verify", repository, "--format", "json"]);
+
+    expect(result.status).toBe(0);
+    await expect(lstat(sentinel)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("refuses repository execution without an explicit JSON argv command", () => {
+    const result = runCli([
+      "verify-repository",
+      fixturePath("direct-model-literal"),
+      "--format",
+      "json",
+    ]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("requires at least one --command JSON argv array");
+  });
+
+  it("runs explicit argv commands only in the temporary patched candidate", async () => {
+    const repository = fixturePath("direct-model-literal");
+    const before = await hashRepositoryTree(repository);
+    const command = [
+      process.execPath,
+      "-e",
+      [
+        'const source = require("node:fs").readFileSync("src/transcribe.ts", "utf8");',
+        "if (!source.includes('model: \"gpt-4o-mini-transcribe-2025-12-15\"')) process.exit(9);",
+        "if (process.env.MIGRATION_DOCTOR_TEST_SECRET !== undefined) process.exit(10);",
+        'console.log("cwd=" + process.cwd() + " OPENAI_API_KEY=sk-test-secret-value");',
+      ].join("\n"),
+    ];
+
+    const result = runCli(
+      [
+        "verify-repository",
+        repository,
+        "--command",
+        JSON.stringify(command),
+        "--timeout-ms",
+        "5000",
+        "--format",
+        "json",
+      ],
+      { MIGRATION_DOCTOR_TEST_SECRET: "must-not-be-inherited" },
+    );
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: "4.0.0",
+      kind: "repository-verify",
+      evidenceScope: "operator-supplied-commands",
+      executionBoundary: "temporary-copy",
+      shellUsed: false,
+      ambientCredentialsInherited: false,
+      networkIsolationEnforced: false,
+      runtimeBehaviorVerified: false,
+      treeHashScope: "scanner-visible-files",
+      passed: true,
+      staticVerification: { verification: { passed: true } },
+      commands: [{ id: "repository_command_1", passed: true, status: "passed", exitCode: 0 }],
+      candidatePatchPreserved: true,
+      originalAnalyzedTreeUnchanged: true,
+    });
+    expect(result.stdout).not.toContain("sk-test-secret-value");
+    expect(result.stdout).not.toContain(repository);
+    expect(result.stderr).toContain("<temporary-candidate>");
+    expect(result.stderr).toContain("OPENAI_API_KEY=<redacted>");
+    expect(result.stderr).not.toContain("sk-test-secret-value");
+    expect(await hashRepositoryTree(repository)).toBe(before);
+  });
+
+  it("fails repository verification on an explicit command failure with bounded redaction", () => {
+    const command = [
+      process.execPath,
+      "-e",
+      'console.error("secret=super-secret-value cwd=" + process.cwd()); process.exit(7);',
+    ];
+    const result = runCli([
+      "verify-repository",
+      fixturePath("direct-model-literal"),
+      "--command",
+      JSON.stringify(command),
+      "--format",
+      "json",
+    ]);
+
+    expect(result.status).toBe(5);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      passed: false,
+      commands: [
+        {
+          id: "repository_command_1",
+          passed: false,
+          status: "failed",
+          exitCode: 7,
+          stderrBytes: expect.any(Number),
+        },
+      ],
+      candidatePatchPreserved: true,
+      originalAnalyzedTreeUnchanged: true,
+    });
+    expect(result.stdout).not.toContain("super-secret-value");
+    expect(result.stderr).toContain("secret=<redacted>");
+    expect(result.stderr).not.toContain("super-secret-value");
+  });
+
+  it("terminates an explicit repository command at its configured timeout", () => {
+    const result = runCli([
+      "verify-repository",
+      fixturePath("direct-model-literal"),
+      "--command",
+      JSON.stringify([process.execPath, "-e", "setTimeout(() => {}, 10_000)"]),
+      "--timeout-ms",
+      "25",
+      "--format",
+      "json",
+    ]);
+
+    expect(result.status).toBe(5);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      passed: false,
+      commands: [
+        {
+          id: "repository_command_1",
+          passed: false,
+          status: "timed-out",
+          exitCode: null,
+        },
+      ],
+      candidatePatchPreserved: true,
+      originalAnalyzedTreeUnchanged: true,
+    });
+  });
+
+  it("fails when a repository command changes the verified candidate patch", () => {
+    const command = [
+      process.execPath,
+      "-e",
+      'require("node:fs").appendFileSync("src/transcribe.ts", "\\n// changed by command\\n")',
+    ];
+    const result = runCli([
+      "verify-repository",
+      fixturePath("direct-model-literal"),
+      "--command",
+      JSON.stringify(command),
+      "--format",
+      "json",
+    ]);
+
+    expect(result.status).toBe(5);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      passed: false,
+      commands: [{ passed: true, status: "passed", exitCode: 0 }],
+      candidatePatchPreserved: false,
+      originalAnalyzedTreeUnchanged: true,
+    });
+  });
+
+  it("terminates repository commands that exceed the output limit", () => {
+    const command = [
+      process.execPath,
+      "-e",
+      'process.stdout.write("x".repeat(1_100_000)); setTimeout(() => {}, 10_000)',
+    ];
+    const result = runCli([
+      "verify-repository",
+      fixturePath("direct-model-literal"),
+      "--command",
+      JSON.stringify(command),
+      "--timeout-ms",
+      "5000",
+      "--format",
+      "json",
+    ]);
+
+    expect(result.status).toBe(5);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      passed: false,
+      commands: [
+        {
+          passed: false,
+          status: "output-limit",
+          stdoutBytes: expect.any(Number),
+        },
+      ],
+      candidatePatchPreserved: true,
+      originalAnalyzedTreeUnchanged: true,
+    });
+    expect(result.stderr.length).toBeLessThan(10_000);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "terminates surviving POSIX descendants before repository verification returns",
+    async () => {
+      const container = await mkdtemp(path.join(tmpdir(), "migration-doctor-descendant-"));
+      temporaryDirectories.push(container);
+      const sentinel = path.join(container, "descendant-survived.txt");
+      const descendant = [
+        "-e",
+        `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(sentinel)}, "ran"), 300)`,
+      ];
+      const command = [
+        process.execPath,
+        "-e",
+        [
+          'const { spawn } = require("node:child_process");',
+          `spawn(process.execPath, ${JSON.stringify(descendant)}, { stdio: "ignore" }).unref();`,
+        ].join("\n"),
+      ];
+
+      const result = runCli([
+        "verify-repository",
+        fixturePath("direct-model-literal"),
+        "--command",
+        JSON.stringify(command),
+        "--format",
+        "json",
+      ]);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(result.status).toBe(0);
+      await expect(lstat(sentinel)).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
 
   it("returns 2 for invalid invocation", () => {
     const result = runCli(["scan", ".", "--format", "xml"]);

@@ -15,6 +15,7 @@ import {
 import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  LIBCST_PROTOCOL_VERSION,
   LibCstBridge,
   measurePythonAdapter,
   PYTHON_MAX_CANDIDATE_FILES,
@@ -25,6 +26,7 @@ import {
   PYTHON_PERFORMANCE_SCHEMA_VERSION,
   PYTHON_SOURCE_MODEL,
   PythonLanguageAdapter,
+  parseLibCstScanResponse,
   pythonPositionToUtf16Offset,
 } from "../packages/language-python/src/index.js";
 
@@ -76,6 +78,47 @@ describe("LibCST Python language adapter", () => {
     });
   }
 
+  it("validates Assistants classifications at the LibCST protocol boundary", () => {
+    const response = {
+      schemaVersion: LIBCST_PROTOCOL_VERSION,
+      kind: "scan-result",
+      files: [
+        {
+          path: "src/assistants.py",
+          matches: [],
+          assistants: [
+            {
+              start: { line: 1, column: 0 },
+              end: { line: 1, column: 29 },
+              features: [
+                {
+                  feature: "assistants",
+                  disposition: "supported",
+                  pattern: "direct",
+                  reasonCode: "manual-migration-required",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      worker: { pythonVersion: "3.13.0", libcstVersion: "1.9.0", peakRssBytes: 0 },
+    };
+
+    expect(parseLibCstScanResponse(response)).toEqual(response);
+    const invalid = structuredClone(response);
+    const classification = invalid.files[0]?.assistants[0]?.features[0];
+    expect(classification).toBeDefined();
+    if (!classification) {
+      return;
+    }
+    classification.disposition = "abstained";
+    classification.reasonCode = "unsupported-method";
+    expect(() => parseLibCstScanResponse(invalid)).toThrow(
+      "has an inconsistent abstained classification",
+    );
+  });
+
   it("serializes Python findings and plans through the shared core schemas", async () => {
     const scan = await scanPython("direct-model-literal");
     expect(scan.scope.extensions).toEqual([".py", ".pyi"]);
@@ -87,7 +130,7 @@ describe("LibCST Python language adapter", () => {
     }
     expect(FindingSchema.parse(finding)).toEqual(finding);
     expect(finding).toMatchObject({
-      schemaVersion: "3.0.0",
+      schemaVersion: "4.0.0",
       language: "python",
       ruleId: "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20",
       evidence: PYTHON_SOURCE_MODEL,
@@ -105,7 +148,7 @@ describe("LibCST Python language adapter", () => {
     const plan = createPlanReport(scan).plan;
     expect(PatchPlanSchema.parse(plan)).toEqual(plan);
     expect(plan).toMatchObject({
-      schemaVersion: "3.0.0",
+      schemaVersion: "4.0.0",
       status: "ready",
       requiresCodex: false,
       allowedFiles: ["src/transcribe.py"],
@@ -210,6 +253,194 @@ describe("LibCST Python language adapter", () => {
     expect(scan.findings).toEqual([]);
     expect(scan.summary).toEqual({ total: 0, blocking: 0, graphIssues: 0 });
   });
+
+  it("inventories direct Python Assistants calls and static behavior facets as Tier C", async () => {
+    const scan = await scanPython("assistants-direct");
+
+    expect(scan.summary).toEqual({ total: 21, blocking: 11, graphIssues: 0 });
+    expect(
+      scan.findings.every(
+        (finding) =>
+          finding.kind === "analysis-only" &&
+          finding.language === "python" &&
+          finding.automationTier === "C" &&
+          finding.reviewRequired &&
+          finding.remediation.kind === "none" &&
+          finding.analysis.family === "assistants-api" &&
+          finding.analysis.pattern === "direct" &&
+          finding.analysis.disposition === "supported" &&
+          finding.analysis.reasonCode === "manual-migration-required",
+      ),
+    ).toBe(true);
+    expect(new Set(scan.findings.map((finding) => finding.analysis.feature))).toEqual(
+      new Set([
+        "assistants",
+        "threads",
+        "runs",
+        "streaming",
+        "tools",
+        "file-search",
+        "code-interpreter",
+      ]),
+    );
+    expect(scan.findings.every((finding) => !finding.evidence.includes("("))).toBe(true);
+    expect(scan.findings.every((finding) => FindingSchema.safeParse(finding).success)).toBe(true);
+
+    const plan = createPlanReport(scan).plan;
+    expect(plan).toMatchObject({ status: "blocked", requiresCodex: false, edits: [] });
+    expect(plan.manualActions).toHaveLength(21);
+    const preview = await createPatchPreview(pythonFixture("assistants-direct"), scan, plan);
+    expect(preview.files).toEqual([]);
+
+    const featuresFor = (evidence: string) =>
+      scan.findings
+        .filter((finding) => finding.evidence === evidence)
+        .map((finding) => finding.analysis.feature);
+    expect(featuresFor("client.beta.threads.messages.create")).toEqual(
+      expect.arrayContaining(["threads", "tools", "file-search"]),
+    );
+    expect(featuresFor("client.beta.threads.runs.submit_tool_outputs")).toEqual(
+      expect.arrayContaining(["threads", "runs", "streaming", "tools"]),
+    );
+  });
+
+  it("fails closed when a proven Python Assistants call has no locked migration edge", async () => {
+    await expect(
+      adapter.scan({
+        repositoryRoot: pythonFixture("assistants-direct"),
+        migrationEdges: registry.edges.filter((edge) => edge.from.id !== "assistants-api"),
+      }),
+    ).rejects.toThrow("No locked Python migration edge exists for the Assistants API.");
+  });
+
+  it("covers the reviewed Python Assistants method allowlist", async () => {
+    const scan = await scanPython("assistants-method-matrix");
+    const expected = new Map<string, Set<string>>();
+    const add = (methods: string[], features: string[]) => {
+      for (const method of methods) {
+        expected.set(method, new Set(features));
+      }
+    };
+
+    add(
+      ["create", "retrieve", "update", "list", "delete"].map(
+        (method) => `client.beta.assistants.${method}`,
+      ),
+      ["assistants"],
+    );
+    add(
+      ["create", "retrieve", "update", "delete"].map((method) => `client.beta.threads.${method}`),
+      ["threads"],
+    );
+    add(
+      ["create_and_run", "create_and_run_poll"].map((method) => `client.beta.threads.${method}`),
+      ["threads", "runs"],
+    );
+    add(["client.beta.threads.create_and_run_stream"], ["threads", "runs", "streaming"]);
+    add(
+      ["create", "retrieve", "update", "list", "delete"].map(
+        (method) => `client.beta.threads.messages.${method}`,
+      ),
+      ["threads"],
+    );
+    add(
+      ["create", "retrieve", "update", "list", "cancel", "create_and_poll", "poll"].map(
+        (method) => `client.beta.threads.runs.${method}`,
+      ),
+      ["threads", "runs"],
+    );
+    add(
+      ["create_and_stream", "stream"].map((method) => `client.beta.threads.runs.${method}`),
+      ["threads", "runs", "streaming"],
+    );
+    add(
+      ["submit_tool_outputs", "submit_tool_outputs_and_poll"].map(
+        (method) => `client.beta.threads.runs.${method}`,
+      ),
+      ["threads", "runs", "tools"],
+    );
+    add(
+      ["client.beta.threads.runs.submit_tool_outputs_stream"],
+      ["threads", "runs", "streaming", "tools"],
+    );
+    add(
+      ["retrieve", "list"].map((method) => `client.beta.threads.runs.steps.${method}`),
+      ["threads", "runs"],
+    );
+
+    const actual = new Map<string, Set<string>>();
+    for (const finding of scan.findings) {
+      const features = actual.get(finding.evidence) ?? new Set<string>();
+      features.add(finding.analysis.feature);
+      actual.set(finding.evidence, features);
+    }
+    expect(scan.summary).toEqual({ total: 55, blocking: 48, graphIssues: 0 });
+    expect(actual).toEqual(expected);
+  });
+
+  it("proves renamed imports, module aliases, and AsyncOpenAI clients", async () => {
+    const [aliases, asynchronous] = await Promise.all([
+      scanPython("assistants-alias"),
+      scanPython("assistants-async"),
+    ]);
+
+    expect(aliases.summary).toEqual({ total: 3, blocking: 3, graphIssues: 0 });
+    expect(aliases.findings.every((finding) => finding.analysis.pattern === "import-alias")).toBe(
+      true,
+    );
+    expect(asynchronous.summary).toEqual({ total: 4, blocking: 3, graphIssues: 0 });
+    expect(asynchronous.findings.every((finding) => finding.analysis.pattern === "direct")).toBe(
+      true,
+    );
+    expect(asynchronous.findings.map((finding) => finding.analysis.feature)).toEqual(
+      expect.arrayContaining(["threads", "runs", "streaming"]),
+    );
+  });
+
+  it("supports a lexically preceding visible closure binding and skips a forward binding", async () => {
+    const [closure, forward] = await Promise.all([
+      scanPython("assistants-closure"),
+      scanPython("assistants-forward-binding"),
+    ]);
+
+    expect(closure.summary).toEqual({ total: 1, blocking: 1, graphIssues: 0 });
+    expect(closure.findings[0]?.evidence).toBe("client.beta.threads.create");
+    expect(forward.findings).toEqual([]);
+  });
+
+  it("keeps proven APIs while routing explicit dynamic facets and methods to abstentions", async () => {
+    const scan = await scanPython("assistants-dynamic");
+    const supported = scan.findings.filter(
+      (finding) => finding.analysis.disposition === "supported",
+    );
+    const abstained = scan.findings.filter(
+      (finding) => finding.analysis.disposition === "abstained",
+    );
+
+    expect(scan.summary).toEqual({ total: 10, blocking: 7, graphIssues: 0 });
+    expect(supported).toHaveLength(5);
+    expect(abstained).toHaveLength(5);
+    expect(new Set(abstained.map((finding) => finding.analysis.reasonCode))).toEqual(
+      new Set(["dynamic-stream", "dynamic-tools", "dynamic-tool-resources", "unsupported-method"]),
+    );
+    expect(
+      abstained.every(
+        (finding) =>
+          finding.kind === "unsupported-pattern" &&
+          finding.confidence === "medium" &&
+          finding.abstentionReason !== undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it.each(["assistants-negative", "assistants-shadowed", "assistants-reassigned"])(
+    "does not infer Assistants provenance for the %s fixture",
+    async (name) => {
+      const scan = await scanPython(name);
+      expect(scan.findings).toEqual([]);
+      expect(scan.summary).toEqual({ total: 0, blocking: 0, graphIssues: 0 });
+    },
+  );
 
   it("preserves comments, spacing, quote style, and all non-model bytes", async () => {
     const root = pythonFixture("formatting-comments");

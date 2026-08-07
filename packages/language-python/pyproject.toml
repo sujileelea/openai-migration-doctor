@@ -1,6 +1,6 @@
 [project]
 name = "migration-doctor-language-python-worker"
-version = "0.0.0"
+version = "0.1.0-alpha.1"
 description = "Local LibCST worker for Migration Doctor's Python language adapter"
 license = "Apache-2.0"
 requires-python = ">=3.9"

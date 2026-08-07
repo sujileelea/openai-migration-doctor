@@ -9,8 +9,10 @@ import {
   BehaviorContractSchema,
   BehaviorObservationSchema,
   ConfigurationError,
+  canonicalJson,
   createPatchPreview,
   createPlanReport,
+  hashRepositoryTree,
   loadMigrationRegistry,
   MigrationDoctorError,
   type Report,
@@ -20,11 +22,22 @@ import {
   verifyPatchPlan,
 } from "@migration-doctor/core";
 import { PythonLanguageAdapter } from "@migration-doctor/language-python";
-import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
+import {
+  JavaScriptLanguageAdapter,
+  TypeScriptLanguageAdapter,
+} from "@migration-doctor/language-typescript";
 import { renderHtml, renderJson, renderMarkdown, renderSarif } from "@migration-doctor/reporters";
 import { Command, CommanderError, Option } from "commander";
+import {
+  DEFAULT_REPOSITORY_COMMAND_TIMEOUT_MS,
+  parseRepositoryCommands,
+  parseRepositoryCommandTimeout,
+  renderRepositoryVerifyMarkdown,
+  verifyRepositoryCommands,
+} from "./repository-commands.js";
 
 type OutputFormat = "html" | "json" | "markdown" | "sarif";
+type RepositoryOutputFormat = "json" | "markdown";
 
 const REPORT_FILES = {
   html: "migration-report.html",
@@ -480,7 +493,11 @@ async function readBehaviorObservation(inputPath: string, label: string) {
 
 async function scanTarget(repository: string) {
   const registry = await loadMigrationRegistry(implementationRoot());
-  const adapters = [new TypeScriptLanguageAdapter(), new PythonLanguageAdapter()];
+  const adapters = [
+    new JavaScriptLanguageAdapter(),
+    new TypeScriptLanguageAdapter(),
+    new PythonLanguageAdapter(),
+  ];
   const scan = await scanRepository({
     repositoryRoot: path.resolve(repository),
     registry,
@@ -496,7 +513,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
   program
     .name("migration-doctor")
     .description("Source-grounded OpenAI API migration diagnostics")
-    .version("0.0.0")
+    .version("0.1.0-alpha.1")
     .showHelpAfterError()
     .exitOverride()
     .configureOutput({
@@ -610,6 +627,79 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
         return report;
       }, options.format);
     });
+
+  program
+    .command("verify-repository")
+    .description(
+      "run explicit argv commands in a temporary patched copy after deterministic verification",
+    )
+    .argument("[repository]", "repository to scan", ".")
+    .option(
+      "--command <json-argv>",
+      'repeatable JSON argv array, for example ["pnpm","test"]',
+      (value: string, previous: string[]) => [...previous, value],
+      [],
+    )
+    .option(
+      "--timeout-ms <milliseconds>",
+      "per-command timeout",
+      String(DEFAULT_REPOSITORY_COMMAND_TIMEOUT_MS),
+    )
+    .addOption(
+      new Option("--format <format>", "output format")
+        .choices(["json", "markdown"])
+        .default("markdown"),
+    )
+    .action(
+      async (
+        repository: string,
+        options: { command: string[]; format: RepositoryOutputFormat; timeoutMs: string },
+      ) => {
+        commandExecuted = true;
+        const commands = parseRepositoryCommands(options.command);
+        const timeoutMs = parseRepositoryCommandTimeout(options.timeoutMs);
+        const startedAt = performance.now();
+        const { registry, adapters, scan } = await scanTarget(repository);
+        const planReport = createPlanReport(scan);
+        const repositoryRoot = path.resolve(repository);
+        const preview = await createPatchPreview(repositoryRoot, scan, planReport.plan);
+        const expectedRepositoryTreeHash = await hashRepositoryTree(repositoryRoot);
+        const staticVerification = await verifyPatchPlan({
+          repositoryRoot,
+          scan,
+          plan: planReport.plan,
+          preview,
+          registry,
+          adapters,
+        });
+        const report = await verifyRepositoryCommands({
+          repositoryRoot,
+          expectedRepositoryTreeHash,
+          preview,
+          staticVerification,
+          commands,
+          timeoutMs,
+          onOutput: (output) => {
+            io.stderr(`[repository-command] ${output.commandId} ${output.stream}\n`);
+            io.stderr(`${output.text}\n`);
+          },
+        });
+        io.stdout(
+          options.format === "json"
+            ? canonicalJson(report)
+            : renderRepositoryVerifyMarkdown(report),
+        );
+        const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
+        io.stderr(`[telemetry] durationMs=${durationMs} cache=disabled\n`);
+        commandExitCode = hasInvalidGraph(scan)
+          ? 4
+          : planReport.plan.status === "blocked"
+            ? 1
+            : report.passed
+              ? 0
+              : 5;
+      },
+    );
 
   program
     .command("verify-behavior")

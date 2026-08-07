@@ -9,6 +9,7 @@ export * from "./patch.js";
 export * from "./plan.js";
 export * from "./ports.js";
 export * from "./repository.js";
+export * from "./repository-verification.js";
 export * from "./scan.js";
 export * from "./schemas.js";
 export * from "./source-lock.js";

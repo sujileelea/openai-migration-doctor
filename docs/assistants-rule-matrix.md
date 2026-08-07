@@ -1,8 +1,8 @@
-# Assistants API TypeScript rule matrix
+# Assistants API rule matrix
 
-Phase 3 inventories deprecated Assistants API usage without transforming it. Every positive or
-high-signal unsupported finding is Tier C, requires human review, and points to the locked product
-edge:
+Migration Doctor inventories deprecated Assistants API usage in JavaScript, TypeScript, and Python without
+transforming it. Every positive or high-signal unsupported finding is Tier C, requires human review,
+and points to the locked product edge:
 
 ```text
 Assistants API -> Responses API + Conversations API
@@ -31,6 +31,8 @@ content, tool arguments, or other customer data.
 
 ## Reviewed methods
 
+### JavaScript and TypeScript
+
 | Surface | Exact methods |
 | --- | --- |
 | `beta.assistants` | `create`, `retrieve`, `update`, `list`, `delete`, `del` |
@@ -42,12 +44,26 @@ content, tool arguments, or other customer data.
 Both current `delete` spellings and legacy OpenAI Node `del` aliases are inventoried. A call rooted
 in a proven OpenAI client but outside this allowlist abstains with `unsupported-method`.
 
-## Pattern boundary
+### Python
+
+| Surface | Exact methods |
+| --- | --- |
+| `beta.assistants` | `create`, `retrieve`, `update`, `list`, `delete` |
+| `beta.threads` | `create`, `retrieve`, `update`, `delete`, `create_and_run`, `create_and_run_poll`, `create_and_run_stream` |
+| `beta.threads.messages` | `create`, `retrieve`, `update`, `list`, `delete` |
+| `beta.threads.runs` | `create`, `retrieve`, `update`, `list`, `cancel`, `create_and_poll`, `create_and_stream`, `poll`, `stream`, `submit_tool_outputs`, `submit_tool_outputs_and_poll`, `submit_tool_outputs_stream` |
+| `beta.threads.runs.steps` | `retrieve`, `list` |
+
+Python uses the same feature mapping as TypeScript with the SDK's snake_case method names. A direct
+call rooted in a proven Python client but outside this allowlist abstains with `unsupported-method`.
+
+## JavaScript and TypeScript pattern boundary
 
 | Pattern | Classification |
 | --- | --- |
 | Runtime default or named `OpenAI` import plus same-file `const` construction | Supported |
 | Renamed runtime import | Supported as `import-alias` |
+| Reviewed `require("openai")`, `.default`, `.OpenAI`, or `{ OpenAI }` constructor plus same-file `const` construction | Supported as `commonjs` |
 | Same-file `const` client alias | Supported as `client-alias` |
 | Same-file `const` `beta`, resource, or nested resource alias | Supported as `property-alias` |
 | Parameter typed by an exact `openai` `OpenAI` import | Abstain with `wrapper-parameter` |
@@ -57,15 +73,28 @@ in a proven OpenAI client but outside this allowlist abstains with `unsupported-
 | Non-inline request object | Keep proven primary API features; do not infer request-derived facets |
 | Spread, computed, duplicate, or dynamic inline facet | Keep proven primary features and abstain on the affected streaming or tool facet |
 
-Comments, documentation strings, lookalike clients, type-only constructor use, Responses API tools,
+Comments, documentation strings, lookalike clients, a locally bound `require`, type-only constructor use, Responses API tools,
 standalone tool configuration, and `purpose: "assistants"` file uploads are negative controls. The
 last case remains valid in current file-search workflows and is not evidence of deprecated API use.
 
-The analyzer intentionally emits no finding when OpenAI provenance cannot be established. Current
-silent boundaries include cross-file clients, factory-created clients, CommonJS construction,
-mutable or destructured aliases, untyped wrapper parameters, constructor-injected or class-field
-receivers, namespace imports, and dynamic namespace selection. These are recall limits, not proof
-that a repository is migrated.
+## Python pattern boundary
+
+| Pattern | Classification |
+| --- | --- |
+| Unconditional exact or renamed `OpenAI` / `AsyncOpenAI` import plus one lexically preceding visible direct assignment, including a closure binding | Supported as `direct` or `import-alias` |
+| Unconditional exact or renamed `openai` module import plus direct constructor assignment | Supported as `direct` or `import-alias` |
+| Reviewed direct Assistant, Thread, Message, Run, or Run Step method | Supported |
+| Reviewed stream helper or explicit `stream=True` | Supported streaming facet |
+| Static non-empty inline `tools=[...]` with literal tool types | Supported tools and known specialized facets |
+| Static inline `tool_resources={...}` with known resource keys | Supported tools and known specialized facets |
+| Static direct or nested message `attachments=[...]` with literal tool types | Supported tools and known specialized facets |
+| Explicit non-literal `stream`, `tools`, or `tool_resources` value | Abstain on the affected facet |
+| Direct static method outside the reviewed allowlist | Abstain with `unsupported-method` |
+| Reassigned or shadowed constructor or client | Silent |
+| Factory, inline constructor, forward client binding, client/resource alias, detached method, dynamic member, or cross-file receiver | Silent |
+
+The analyzers intentionally emit no finding when OpenAI provenance cannot be established. Their
+silent boundaries are recall limits, not proof that a repository is migrated.
 
 ## Measured synthetic gate
 
@@ -86,3 +115,9 @@ The checked-in TypeScript corpus currently measures:
 These are deterministic results on authored fixtures, not a public benchmark or a claim about
 arbitrary repositories. The Phase 6 public benchmark remains separate and requires at least 100
 labeled TypeScript fixtures before benchmark-quality claims are made.
+
+The checked-in Python fixture suite separately asserts 21 atomic findings on representative direct
+calls, all 31 reviewed method calls and their 55 feature findings, five explicit dynamic-facet or
+unsupported-method abstentions, aliased and asynchronous clients, and zero findings for lookalike,
+shadowed, and reassigned clients. These exact authored-fixture checks are not a public Python
+precision or recall benchmark.

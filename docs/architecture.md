@@ -1,8 +1,8 @@
 # Architecture
 
-Migration Doctor implements one deterministic TypeScript and Python model migration, a review-only
-TypeScript Assistants API analysis slice, an offline behavioral contract verifier, four report
-formats, and a removable Codex remediation adapter boundary.
+Migration Doctor implements one deterministic JavaScript, TypeScript, and Python model migration,
+review-only Assistants API analysis in all three languages, an offline behavioral contract
+verifier, four report formats, and a removable Codex remediation adapter boundary.
 
 ## Dependency direction
 
@@ -30,7 +30,7 @@ schemas, or verification policy.
    reject it unless that snapshot retains the loaded hash. The lock file is a checked-in trust
    anchor, not a signed provenance statement.
 2. `resolveMigrationPath` follows same-language unconstrained edges, aggregates agreeing sources, and records conflicts, missing destinations, cycles, or unverified SDK constraints without selecting a speculative target.
-3. `scanRepository` invokes the registered TypeScript and Python language adapters and normalizes
+3. `scanRepository` invokes the registered JavaScript, TypeScript, and Python language adapters and normalizes
    findings and graph issues to relative POSIX paths.
 4. `createPatchPlan` independently resolves the locked path, then freezes either exact edits or
    source-backed manual actions containing the terminal target, reason code, and behavior changes.
@@ -38,10 +38,18 @@ schemas, or verification policy.
 6. `verifyPatchPlan` verifies blocked plans without applying anything. For ready plans, it copies
    the repository to a temporary directory, applies frozen edits, re-scans the copy, compares file
    hashes, and confirms the original tree hash is unchanged.
-7. Reporters serialize the same normalized result as Markdown, canonical JSON, SARIF 2.1.0, or
-   script-free static HTML. The CLI `report` command scans once, stages all four files, claims a new
-   bundle directory outside the scanned repository, and removes partial output if publication
-   fails.
+7. The CLI-only `verify-repository` boundary calls `verifyPatchPlan` first and does not modify it.
+   After static verification passes, it creates a second patched copy and sequentially invokes only
+   operator-supplied JSON argv arrays with `shell: false`, a minimal environment, bounded output,
+   a per-command timeout, POSIX process-group cleanup, and a final scanner-visible candidate-tree
+   hash check. Its separate report keeps `runtimeBehaviorVerified: false`; the Codex candidate
+   verifier never imports or calls this execution boundary.
+8. Reporters serialize the same normalized result as Markdown, canonical JSON, SARIF 2.1.0, or
+   script-free static HTML. The CLI `report` command scans once, claims a new bundle directory
+   outside the scanned repository, and publishes all four files with no-replace semantics. It never
+   deletes a pathname after publication begins because another same-user process could replace that
+   path; a failed or interrupted publication can therefore leave a partial directory for explicit
+   operator review.
 
 `verifyBehaviorContract` is a separate, repository-independent path. It validates a versioned
 contract plus baseline and candidate observations, selects the referenced edges from the locked
@@ -96,12 +104,12 @@ a redacted failed-attempt audit instead of discarding the ledger.
 ## Python worker boundary
 
 The Python adapter enumerates `.py` and `.pyi` through the same repository file boundary as the
-TypeScript adapter, decodes bytes as strict UTF-8, and prefilters only files containing the exact
-source model. Invalid UTF-8 and candidate parse failures stop analysis. A local `openai.py` or
+compiler adapters, decodes bytes as strict UTF-8, and prefilters files containing the exact source
+model or an Assistants lexical candidate. Invalid UTF-8 and candidate parse failures stop analysis. A local `openai.py` or
 `openai/__init__.py` on a candidate's import path causes a conservative skip because external SDK
 identity cannot be established safely. Enumeration retains at most 4,096 matching paths, files are
-read sequentially with a 2 MiB per-file limit, and source-model candidates are bounded to 256 files
-and 16 MiB before shadow exclusions.
+read sequentially with a 2 MiB per-file limit, and source-model plus Assistants lexical candidates
+are bounded together to 256 files and 16 MiB before shadow exclusions.
 
 Candidate source is sent as a JSON request to LibCST 1.9.0 in
 `packages/language-python/.venv`. The Node bridge requires absolute interpreter and worker paths,
@@ -147,7 +155,7 @@ Graph paths preserve deterministic traversal order. Evidence sources and paralle
 
 Reviewed registry artifacts and `migration.lock` use source schema `1.0.0`. Command reports and
 their nested findings, graph issues, deterministic plans, and manual actions use report schema
-`3.0.0`. Semantic plans use semantic schema `1.0.0`; Codex manifests, structured proposals, and
+`4.0.0`. Semantic plans use semantic schema `1.0.0`; Codex manifests, structured proposals, and
 redacted audits use adapter schema `1.0.0`. Their lifecycles are intentionally separate.
 
 ## Analysis-only plans

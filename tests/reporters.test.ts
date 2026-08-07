@@ -142,7 +142,7 @@ describe("reporters", () => {
       "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
     );
     expect(sarif.version).toBe("2.1.0");
-    expect(sarif.runs[0]?.tool.driver.semanticVersion).toBe("0.0.0");
+    expect(sarif.runs[0]?.tool.driver.semanticVersion).toBe("0.1.0-alpha.1");
     expect(sarif.runs[0]?.tool.driver.rules[0]?.helpUri).toBe(
       "https://developers.openai.com/api/docs/deprecations",
     );

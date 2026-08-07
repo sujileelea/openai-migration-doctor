@@ -4,11 +4,11 @@ import sys
 
 request = json.load(sys.stdin)
 response = {
-    "schemaVersion": "1.0.0",
+    "schemaVersion": "1.1.0",
     "kind": "scan-result" if request["operation"] == "scan" else "rewrite-result",
     "files": [
         (
-            {"path": source_file["path"], "matches": []}
+            {"path": source_file["path"], "matches": [], "assistants": []}
             if request["operation"] == "scan"
             else {
                 "path": source_file["path"],

@@ -81,7 +81,7 @@ beforeAll(async () => {
 
 describe("serialized schema invariants", () => {
   it("uses the version 3 report contract independently of registry schema version 1", () => {
-    expect(REPORT_SCHEMA_VERSION).toBe("3.0.0");
+    expect(REPORT_SCHEMA_VERSION).toBe("4.0.0");
     expect(SEMANTIC_PLAN_SCHEMA_VERSION).toBe("1.0.0");
     expect(validScan.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
     expect(ScanResultSchema.safeParse({ ...validScan, schemaVersion: "1.0.0" }).success).toBe(

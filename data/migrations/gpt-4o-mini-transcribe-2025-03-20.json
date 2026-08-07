@@ -28,7 +28,7 @@
         "contentHash": "da0d59ea4a9c17f571f28a3a721ed7e45df6bc7bad283f27378905a7f07cab44"
       }
     ],
-    "languages": ["typescript", "python"],
+    "languages": ["javascript", "typescript", "python"],
     "behaviorChanges": [
       "Transcription output may differ between model snapshots; application-level audio evaluation remains required."
     ],

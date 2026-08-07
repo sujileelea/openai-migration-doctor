@@ -2,18 +2,24 @@
 
 ## Current command behavior
 
-- `scan` reads supported TypeScript and Python source files and never calls a network API.
+- `scan` reads supported JavaScript, TypeScript, and Python source files and never calls a network API.
 - `report` performs one read-only scan and saves Markdown, JSON, SARIF, and HTML only to a new
   directory outside the target repository.
 - `plan` reads findings and locked migration data and never writes the target repository.
 - `migrate` emits a preview only. This release has no apply flag.
 - `verify` writes only to a temporary repository copy and removes it after the run.
+- `verify-repository` is the only repository-execution surface. It first requires the unchanged
+  deterministic verification to pass, then runs explicit JSON argv arrays without a shell in a
+  second temporary patched copy. It never adds command discovery or execution to `verify`.
 - `verify-behavior` reads local JSON observations only. It does not execute a repository or make a
   network or live API call.
 
-No current command invokes Codex, reads an OpenAI API key, pushes Git changes, creates a pull
-request, deploys, or merges. The separately imported `codex-adapter` is an opt-in library surface;
-the shipped analyzer and CLI do not route plans into it.
+Migration Doctor does not invoke Codex, inject an OpenAI API key, push Git changes, create a pull
+request, deploy, or merge. `verify-repository` omits ambient credential variables and uses a private
+temporary home, but its trusted child command receives the exact operator-supplied argv and retains
+the host user's filesystem permissions and host network policy. Secrets must not be placed in argv.
+The separately imported `codex-adapter` is an opt-in library surface; the shipped analyzer and CLI
+do not route plans into it.
 
 ## Fail-closed checks
 
@@ -24,9 +30,9 @@ the shipped analyzer and CLI do not route plans into it.
   Invalid bytes, parse errors, protocol drift, version drift, changed file order, oversized worker
   output, worker timeout, and malformed responses stop analysis.
 - Python enumeration stops before retaining more than 4,096 matching paths. Source files are read
-  sequentially with a 2 MiB per-file limit; source-model candidates are limited to 256 files and
-  16 MiB total. Direct LibCST calls enforce the same content budgets and a 64 MiB serialized-input
-  limit before constructing the complete worker request.
+  sequentially with a 2 MiB per-file limit; source-model and Assistants lexical candidates share a
+  limit of 256 files and 16 MiB total. Direct LibCST calls enforce the same content budgets and a
+  64 MiB serialized-input limit before constructing the complete worker request.
 - The LibCST bridge requires absolute interpreter and worker paths and invokes Python with
   `-I -X utf8`. On macOS and Linux the worker receives an empty environment; on Windows it receives
   only the system-root variables required to start Python. Ambient credentials and other secret
@@ -50,6 +56,10 @@ the shipped analyzer and CLI do not route plans into it.
 - File hash or expected-text drift invalidates a frozen plan.
 - Overlapping edits are rejected.
 - Verification compares the complete resulting file hash, not only the changed-file name.
+- `verify-repository` re-hashes the scanner-visible patched candidate after commands finish and
+  rejects command-induced source drift. On POSIX it also terminates surviving members of the
+  command process group; Windows repository execution is rejected because equivalent containment
+  is not guaranteed.
 - Symbolic links and generated dependency/build directories are not scanned or copied.
 - A report bundle refuses an existing destination and every destination inside the resolved target
   root. It claims a mode-0700 directory without replacement, creates each mode-0600 file with
