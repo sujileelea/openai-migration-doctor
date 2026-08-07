@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -129,7 +130,13 @@ describe("Phase 6 benchmark", () => {
     expect(ledger.performance.warmIncremental.observedNodeHttpRequests).toBe(0);
     expect(ledger.performance.cold.peakRssBytes).toBeGreaterThan(0);
     expect(ledger.budgets.passed).toBe(true);
-    expect(ledger.repositoryWorkingTreeClean).toBe(false);
+    const gitStatus = spawnSync(
+      "git",
+      ["-C", PROJECT_ROOT, "status", "--porcelain=v1", "--untracked-files=all"],
+      { encoding: "utf8" },
+    );
+    expect(gitStatus.status).toBe(0);
+    expect(ledger.repositoryWorkingTreeClean).toBe(gitStatus.stdout.length === 0);
 
     const serialized = benchmarkLedgerJson(ledger);
     expect(serialized).not.toContain("migration-doctor-benchmark-");
