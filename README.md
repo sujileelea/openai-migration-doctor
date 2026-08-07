@@ -115,8 +115,9 @@ external API or changing the repository.
 ### `report`
 
 Runs the same read-only scan once and saves Markdown, canonical JSON, SARIF 2.1.0, and a script-free
-static HTML view with all-or-cleanup failure handling. It refuses an existing destination or any
-output location inside the scanned repository.
+static HTML view in a newly claimed external directory. It refuses an existing destination or any
+output location inside the scanned repository and never replaces an existing report entry. A failed
+or interrupted publication can leave a partial new directory for manual inspection.
 
 ### `plan`
 
@@ -395,8 +396,9 @@ from commit
 Implemented now:
 
 - terminal Markdown, canonical JSON, SARIF 2.1.0, and script-free static HTML;
-- all-or-cleanup saved bundles containing `migration-report.md`, `migration-report.json`,
-  `migration-report.sarif`, and `migration-report.html` outside the scanned target;
+- no-replace saved bundles containing `migration-report.md`, `migration-report.json`,
+  `migration-report.sarif`, and `migration-report.html` outside the scanned target after successful
+  publication;
 - exact file and line findings;
 - source-backed patch plans;
 - source-backed manual migration actions;

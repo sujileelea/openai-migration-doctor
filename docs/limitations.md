@@ -30,10 +30,15 @@ rule or CLI command can invoke it.
 - Python local `openai.py` and `openai/__init__.py` shadows are skipped conservatively. Reassigned or
   conditional clients, wrappers, indirect clients, dynamic models, starred arguments, and
   non-literal spellings are not detected.
-- The Python adapter reads all `.py` and `.pyi` files concurrently before filtering candidates and
-  serializes complete candidate sources into one worker request. There is no per-file, aggregate
-  byte, file-count, or request-input cap. A very large repository can therefore exhaust parent
-  process memory before the worker timeout or 64 MiB output caps apply.
+- The Python adapter retains at most 4,096 `.py` and `.pyi` paths, reads those files sequentially,
+  and fails closed when any source is larger than 2 MiB. Source-model candidates are capped at 256
+  files and 16 MiB total, including candidates later excluded for local-module shadowing. The direct
+  LibCST scan and rewrite bridge enforces the same content budgets and a 64 MiB serialized-input cap
+  before building the complete worker request. Repositories above a budget must be narrowed before
+  analysis; files are never silently skipped to fit. Directory enumeration still materializes one
+  directory's metadata entries at a time, so the matching-path cap is not a total process-heap bound.
+  The pre-read stat and post-read byte checks reject size growth, but do not make same-size source
+  replacement by another same-user process an isolation boundary.
 - Python Assistants analysis and JavaScript are not implemented.
 
 These constraints favor precision over recall. In the authored Phase 6 TypeScript corpus, 75
@@ -144,18 +149,27 @@ claim for arbitrary repositories. See the
   view, not an interactive dashboard.
 - SARIF shape and determinism have focused tests, and GitHub CodeQL accepted the upload in the
   [first hosted workflow run](https://github.com/sujileelea/openai-migration-doctor/actions/runs/31159576201).
-  A separate official SARIF schema-validator suite is not installed.
-- Report publication resolves the target and output parent before its containment and no-replace
-  checks. A malicious same-user process can replace a path component between those operations; Node
-  does not provide the directory-descriptor `openat` primitives needed to close that TOCTOU window.
-  Normal concurrent publishers are tested and only one can claim the destination.
+  The separate `validate:sarif` gate validates generated output against hash-pinned official OASIS
+  schema bytes with exact-pinned Ajv. That gate requires network access to fetch the schema; it is
+  not part of detection.
+- Report publication claims a mode-0700 destination with no replacement, creates mode-0600 files
+  with `O_EXCL`, and checks file-descriptor identity, size, and SHA-256 at publication boundaries.
+  Normal concurrent publishers are tested and only one can claim the destination. These checks
+  detect ordinary path replacement but are not an adversarial same-user isolation boundary: Node
+  does not expose the `openat`-family primitives needed to bind every path operation, another
+  process can race the destination's `mkdir` and first identity capture, and an owned inode can be
+  modified after the final hash check. Publication performs no pathname cleanup because a path may
+  have been replaced after validation. A failed or interrupted command can therefore leave a
+  partial new output directory; remove it only after confirming its ownership and that no publisher
+  is active.
 - The composite GitHub Action supports GitHub-hosted Linux and macOS with Bash, Node.js, Python, uv,
   and Corepack setup. It deliberately surfaces finding exit `1` as an output before a calling
   workflow chooses whether to fail; errors `2` through `5` fail the action.
-- The action shell runner, including its no-`.git` packaged-entry fallback, is tested locally. The
-  composite wrapper, runtime setup, SARIF upload, and artifact upload also passed on GitHub-hosted
-  Ubuntu at commit `321bf81810a7ac9fd849513fe94e7eb6ca4c0e6a`; a hosted macOS run remains
-  untested.
+- The action shell runner, including its no-`.git` packaged-entry fallback, is tested locally. In
+  [hosted run 31161269797](https://github.com/sujileelea/openai-migration-doctor/actions/runs/31161269797)
+  at commit `13499b159013fa87e7d8f9c6bb835f552aabd477`, the composite Action, artifact upload, and
+  finding enforcement passed on both `ubuntu-latest` and `macos-latest`; the Ubuntu job also passed
+  the intentionally Ubuntu-only SARIF upload.
 - Runtime telemetry is written to stderr and is not part of the canonical report.
 - Phase 4 structural fields reject unknown keys and report-unsafe identifiers. Arbitrary JSON
   payload keys remain supported except an own `__proto__` key, which is rejected at any depth

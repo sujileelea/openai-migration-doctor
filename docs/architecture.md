@@ -99,14 +99,17 @@ The Python adapter enumerates `.py` and `.pyi` through the same repository file 
 TypeScript adapter, decodes bytes as strict UTF-8, and prefilters only files containing the exact
 source model. Invalid UTF-8 and candidate parse failures stop analysis. A local `openai.py` or
 `openai/__init__.py` on a candidate's import path causes a conservative skip because external SDK
-identity cannot be established safely.
+identity cannot be established safely. Enumeration retains at most 4,096 matching paths, files are
+read sequentially with a 2 MiB per-file limit, and source-model candidates are bounded to 256 files
+and 16 MiB before shadow exclusions.
 
 Candidate source is sent as a JSON request to LibCST 1.9.0 in
 `packages/language-python/.venv`. The Node bridge requires absolute interpreter and worker paths,
 starts Python with `-I -X utf8`, supplies no ambient environment on macOS or Linux, preserves only
 the Windows system-root variables required to start the interpreter, caps stdout and stderr, and
-enforces a timeout. Both scan and rewrite responses must report the exact LibCST version and match
-the requested file set and order.
+enforces a timeout. Direct scan and rewrite calls apply the same content limits and preflight the
+exact serialized request against a 64 MiB input cap before JSON construction. Both responses must
+report the exact LibCST version and match the requested file set and order.
 
 LibCST's qualified-name and scope metadata confirms an imported `OpenAI` or `AsyncOpenAI`
 constructor, a direct module- or function-scope client assignment, and a later exact

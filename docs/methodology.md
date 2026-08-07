@@ -201,11 +201,14 @@ the TypeScript authored corpus and is not a public cross-language quality benchm
 ## Report derivation
 
 Markdown, canonical JSON, SARIF 2.1.0, and static HTML are derived from the same normalized report
-object. The CLI `report` command scans once, writes every format to a temporary sibling, claims a
-new external destination, and moves all four files into it. A pre-existing destination, a location
-inside the target, or an incomplete write fails without treating the bundle as published. The
-GitHub Action and checked-in audit skill invoke this command through isolated temporary builds;
-they do not add detection logic.
+object. The CLI `report` command scans once, claims a new external mode-0700 destination, and renders
+each format sequentially into a mode-0600 file opened with `O_EXCL`. File-descriptor identity, size,
+and SHA-256 checks bind successful publication to the bytes that were written. A pre-existing
+destination, a location inside the target, or an incomplete write fails without reporting the
+bundle as complete. Failure performs no pathname deletion and can leave partial artifacts because
+non-destructive cleanup cannot be guaranteed against path replacement. The GitHub Action and
+checked-in audit skill invoke this command through isolated temporary builds; they do not add
+detection logic.
 
 ## Offline behavioral contracts
 

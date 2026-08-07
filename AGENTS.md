@@ -44,7 +44,9 @@ corepack pnpm validate:sarif
 - Do not route a production rule or CLI command to Codex until that rule has source-backed Tier B
   scope and a trusted repository observation harness.
 - Saved report bundles must use a new directory outside the scanned target. Markdown, canonical
-  JSON, SARIF, and static HTML must remain views of the same normalized report.
+  JSON, SARIF, and static HTML must remain views of the same normalized report. Never delete a
+  report path after a publication failure unless ownership is bound by a filesystem primitive that
+  cannot race path replacement.
 - Keep SARIF schema validation as an explicit network gate with official OASIS URL bytes and the
   expected SHA-256 pinned in `config/sarif-schema-lock.json`. Do not vendor the schema body or add
   network access to detection.

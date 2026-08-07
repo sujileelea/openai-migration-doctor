@@ -23,6 +23,10 @@ the shipped analyzer and CLI do not route plans into it.
 - Candidate Python files must decode as strict UTF-8 and parse with exact-locked LibCST 1.9.0.
   Invalid bytes, parse errors, protocol drift, version drift, changed file order, oversized worker
   output, worker timeout, and malformed responses stop analysis.
+- Python enumeration stops before retaining more than 4,096 matching paths. Source files are read
+  sequentially with a 2 MiB per-file limit; source-model candidates are limited to 256 files and
+  16 MiB total. Direct LibCST calls enforce the same content budgets and a 64 MiB serialized-input
+  limit before constructing the complete worker request.
 - The LibCST bridge requires absolute interpreter and worker paths and invokes Python with
   `-I -X utf8`. On macOS and Linux the worker receives an empty environment; on Windows it receives
   only the system-root variables required to start Python. Ambient credentials and other secret
@@ -48,8 +52,10 @@ the shipped analyzer and CLI do not route plans into it.
 - Verification compares the complete resulting file hash, not only the changed-file name.
 - Symbolic links and generated dependency/build directories are not scanned or copied.
 - A report bundle refuses an existing destination and every destination inside the resolved target
-  root. Files are staged in a temporary sibling before publication; a partial bundle is removed on
-  failure.
+  root. It claims a mode-0700 directory without replacement, creates each mode-0600 file with
+  `O_EXCL`, and verifies the open file's identity, size, and SHA-256. It never deletes report paths
+  on failure because another process may have replaced them; failed or interrupted publication can
+  leave partial artifacts that require ownership and quiescence checks before manual removal.
 - A Codex semantic plan freezes the full Git revision, exact source preimage hashes, instructions,
   required and forbidden paths, behavior inputs, complete selected edge records, the internal
   adapter ID, and a rule-specific semantic verifier. Manifest creation and execution each reproduce
