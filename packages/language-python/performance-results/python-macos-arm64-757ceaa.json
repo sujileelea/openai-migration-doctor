@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "python-language-adapter-performance",
+  "measurementScope": "adapter-smoke",
+  "measuredAt": "2026-08-07T07:38:31.640Z",
+  "toolRevision": "757ceaa04c8ca2b2965f341e39e3bffbbc5e96e0",
+  "toolWorkingTreeClean": true,
+  "migrationEdgesHash": "8ca1e9cd4dc10e54b06d26eb15d82f3ecd68925b15e4cd4cc849e60e373eaeb4",
+  "corpus": {
+    "repositoryRevision": null,
+    "sha256": "b58b377471cd0a4f3da2970f6c9a63674707e6ebfdfe0cc460e4a1b7f2f246af",
+    "repositoryFiles": 1,
+    "candidateFiles": 1,
+    "candidateBytes": 259
+  },
+  "adapter": "python-libcst",
+  "environment": {
+    "platform": "darwin",
+    "release": "25.5.0",
+    "architecture": "arm64",
+    "cpu": "Apple M3 Max",
+    "logicalCpuCount": 14,
+    "nodeVersion": "v22.18.0",
+    "pythonVersion": "3.13.11",
+    "libcstVersion": "1.9.0"
+  },
+  "measurements": [
+    {
+      "iteration": 1,
+      "mode": "isolated-process",
+      "durationMs": 192.364,
+      "workerPeakRssBytes": 36012032,
+      "repositoryFiles": 1,
+      "candidateFiles": 1,
+      "candidateBytes": 259,
+      "findings": 1,
+      "graphIssues": 0
+    },
+    {
+      "iteration": 2,
+      "mode": "isolated-process",
+      "durationMs": 107.067,
+      "workerPeakRssBytes": 35700736,
+      "repositoryFiles": 1,
+      "candidateFiles": 1,
+      "candidateBytes": 259,
+      "findings": 1,
+      "graphIssues": 0
+    },
+    {
+      "iteration": 3,
+      "mode": "isolated-process",
+      "durationMs": 105.42,
+      "workerPeakRssBytes": 35749888,
+      "repositoryFiles": 1,
+      "candidateFiles": 1,
+      "candidateBytes": 259,
+      "findings": 1,
+      "graphIssues": 0
+    }
+  ]
+}
