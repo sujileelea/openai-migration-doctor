@@ -51,7 +51,7 @@ type FeatureResult = {
 };
 
 const SUPPORTED_REASON =
-  "Assistants API usage is confirmed, but Phase 3 does not transform stateful API integrations.";
+  "Assistants API usage is confirmed, but Migration Doctor does not transform stateful API integrations.";
 
 const METHOD_RULES = new Map<string, MethodRule>([
   ["beta.assistants.create", { features: ["assistants"], requestIndex: 0 }],
