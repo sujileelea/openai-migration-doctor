@@ -1,4 +1,5 @@
-import { access, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, truncate, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -12,10 +13,15 @@ import {
   verifyPatchPlan,
 } from "@migration-doctor/core";
 import { TypeScriptLanguageAdapter } from "@migration-doctor/language-typescript";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   LibCstBridge,
   measurePythonAdapter,
+  PYTHON_MAX_CANDIDATE_FILES,
+  PYTHON_MAX_CANDIDATE_SOURCE_BYTES,
+  PYTHON_MAX_SOURCE_FILE_BYTES,
+  PYTHON_MAX_SOURCE_FILES,
+  PYTHON_MAX_WORKER_INPUT_BYTES,
   PYTHON_PERFORMANCE_SCHEMA_VERSION,
   PYTHON_SOURCE_MODEL,
   PythonLanguageAdapter,
@@ -40,12 +46,27 @@ function pythonFixture(name: string): string {
 describe("LibCST Python language adapter", () => {
   const adapter = new PythonLanguageAdapter({ pythonExecutable: PYTHON_EXECUTABLE });
   const typescriptAdapter = new TypeScriptLanguageAdapter();
+  const temporaryRepositories: string[] = [];
   let registry: Awaited<ReturnType<typeof loadMigrationRegistry>>;
 
   beforeAll(async () => {
     await access(PYTHON_EXECUTABLE);
     registry = await loadMigrationRegistry(PROJECT_ROOT);
   });
+
+  afterAll(async () => {
+    await Promise.all(
+      temporaryRepositories.map(async (repositoryRoot) => {
+        await rm(repositoryRoot, { recursive: true, force: true });
+      }),
+    );
+  });
+
+  async function temporaryPythonRepository(): Promise<string> {
+    const repositoryRoot = await mkdtemp(path.join(tmpdir(), "migration-doctor-python-limits-"));
+    temporaryRepositories.push(repositoryRoot);
+    return repositoryRoot;
+  }
 
   async function scanPython(name: string) {
     return await scanRepository({
@@ -387,6 +408,107 @@ describe("LibCST Python language adapter", () => {
     expect(ledger.migrationEdgesHash).toMatch(/^[a-f0-9]{64}$/u);
     expect(ledger.corpus.sha256).toMatch(/^[a-f0-9]{64}$/u);
     expect(ledger).not.toHaveProperty("kind", "benchmark-ledger");
+  });
+
+  it("rejects an oversized noncandidate before reading its source", async () => {
+    const repositoryRoot = await temporaryPythonRepository();
+    const sourcePath = path.join(repositoryRoot, "generated.py");
+    await writeFile(sourcePath, "pass\n", "utf8");
+    await truncate(sourcePath, PYTHON_MAX_SOURCE_FILE_BYTES + 1);
+
+    await expect(adapter.scan({ repositoryRoot, migrationEdges: registry.edges })).rejects.toThrow(
+      `Python source file generated.py is ${PYTHON_MAX_SOURCE_FILE_BYTES + 1} bytes before read; the per-file source limit is ${PYTHON_MAX_SOURCE_FILE_BYTES} bytes.`,
+    );
+  });
+
+  it("rejects noncandidate Python source counts during bounded enumeration", async () => {
+    const repositoryRoot = await temporaryPythonRepository();
+    const batchSize = 128;
+    for (let start = 0; start <= PYTHON_MAX_SOURCE_FILES; start += batchSize) {
+      const count = Math.min(batchSize, PYTHON_MAX_SOURCE_FILES + 1 - start);
+      await Promise.all(
+        Array.from({ length: count }, async (_, offset) => {
+          await writeFile(path.join(repositoryRoot, `source-${start + offset}.py`), "", "utf8");
+        }),
+      );
+    }
+
+    await expect(adapter.scan({ repositoryRoot, migrationEdges: registry.edges })).rejects.toThrow(
+      `the source file limit is ${PYTHON_MAX_SOURCE_FILES}`,
+    );
+  });
+
+  it("rejects repositories above the production candidate-file limit", async () => {
+    const repositoryRoot = await temporaryPythonRepository();
+    const candidate = `# ${PYTHON_SOURCE_MODEL}\n`;
+    for (let index = 0; index <= PYTHON_MAX_CANDIDATE_FILES; index += 1) {
+      await writeFile(path.join(repositoryRoot, `candidate-${index}.py`), candidate, "utf8");
+    }
+
+    await expect(adapter.scan({ repositoryRoot, migrationEdges: registry.edges })).rejects.toThrow(
+      `the candidate file limit is ${PYTHON_MAX_CANDIDATE_FILES}`,
+    );
+  });
+
+  it("rejects repositories above the production aggregate candidate-source limit", async () => {
+    const repositoryRoot = await temporaryPythonRepository();
+    const fileCount = Math.floor(PYTHON_MAX_CANDIDATE_SOURCE_BYTES / PYTHON_MAX_SOURCE_FILE_BYTES);
+    for (let index = 0; index <= fileCount; index += 1) {
+      const sourcePath = path.join(repositoryRoot, `candidate-${index}.py`);
+      await writeFile(sourcePath, `# ${PYTHON_SOURCE_MODEL}\n`, "utf8");
+      await truncate(sourcePath, PYTHON_MAX_SOURCE_FILE_BYTES);
+    }
+
+    await expect(adapter.scan({ repositoryRoot, migrationEdges: registry.edges })).rejects.toThrow(
+      `the aggregate source limit is ${PYTHON_MAX_CANDIDATE_SOURCE_BYTES} bytes`,
+    );
+  });
+
+  it("enforces production source budgets on direct bridge scan and rewrite calls", async () => {
+    const oversizedContent = "x".repeat(PYTHON_MAX_SOURCE_FILE_BYTES + 1);
+    await expect(
+      adapter.bridge.scan(
+        [{ path: "oversized.py", content: oversizedContent }],
+        PYTHON_SOURCE_MODEL,
+      ),
+    ).rejects.toThrow(`the per-file source limit is ${PYTHON_MAX_SOURCE_FILE_BYTES} bytes`);
+    await expect(
+      adapter.bridge.rewrite(
+        [{ path: "oversized.py", content: oversizedContent }],
+        PYTHON_SOURCE_MODEL,
+        TARGET_MODEL,
+      ),
+    ).rejects.toThrow(`the per-file source limit is ${PYTHON_MAX_SOURCE_FILE_BYTES} bytes`);
+
+    const tooManyFiles = Array.from({ length: PYTHON_MAX_CANDIDATE_FILES + 1 }, (_, index) => ({
+      path: `candidate-${index}.py`,
+      content: "pass\n",
+    }));
+    await expect(adapter.bridge.scan(tooManyFiles, PYTHON_SOURCE_MODEL)).rejects.toThrow(
+      `the limit is ${PYTHON_MAX_CANDIDATE_FILES}`,
+    );
+
+    const contentAtFileLimit = "x".repeat(PYTHON_MAX_SOURCE_FILE_BYTES);
+    const aggregateFiles = Array.from(
+      {
+        length: Math.floor(PYTHON_MAX_CANDIDATE_SOURCE_BYTES / PYTHON_MAX_SOURCE_FILE_BYTES) + 1,
+      },
+      (_, index) => ({ path: `aggregate-${index}.py`, content: contentAtFileLimit }),
+    );
+    await expect(adapter.bridge.scan(aggregateFiles, PYTHON_SOURCE_MODEL)).rejects.toThrow(
+      `the aggregate source limit is ${PYTHON_MAX_CANDIDATE_SOURCE_BYTES} bytes`,
+    );
+
+    const controlCharacterContent = "\0".repeat(PYTHON_MAX_SOURCE_FILE_BYTES);
+    const escapedInputFiles = Array.from(
+      {
+        length: PYTHON_MAX_CANDIDATE_SOURCE_BYTES / PYTHON_MAX_SOURCE_FILE_BYTES,
+      },
+      (_, index) => ({ path: `escaped-${index}.py`, content: controlCharacterContent }),
+    );
+    await expect(adapter.bridge.scan(escapedInputFiles, PYTHON_SOURCE_MODEL)).rejects.toThrow(
+      `the worker input limit is ${PYTHON_MAX_WORKER_INPUT_BYTES} bytes`,
+    );
   });
 
   it("rejects scan and rewrite workers whose LibCST version drifted", async () => {

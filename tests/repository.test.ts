@@ -5,6 +5,7 @@ import {
   changedRepositoryFiles,
   compareStrings,
   listRepositoryFiles,
+  RepositoryFileLimitError,
 } from "@migration-doctor/core";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -46,5 +47,16 @@ describe("repository determinism", () => {
 
     expect(await listRepositoryFiles(root)).toEqual(["z.ts", "ä.ts"]);
     expect(["ä", "z"].sort(compareStrings)).toEqual(["z", "ä"]);
+  });
+
+  it("stops before retaining a matching path above a caller-supplied file limit", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "migration-doctor-file-limit-"));
+    temporaryDirectories.push(root);
+    await writeFile(path.join(root, "a.py"), "");
+    await writeFile(path.join(root, "b.py"), "");
+
+    await expect(
+      listRepositoryFiles(root, new Set([".py"]), { maxFiles: 1 }),
+    ).rejects.toBeInstanceOf(RepositoryFileLimitError);
   });
 });

@@ -45,10 +45,28 @@ export function resolveRepositoryFile(repositoryRoot: string, relativePath: stri
   return resolved;
 }
 
+export type ListRepositoryFilesOptions = {
+  maxFiles?: number;
+};
+
+export class RepositoryFileLimitError extends ConfigurationError {
+  readonly maxFiles: number;
+
+  constructor(maxFiles: number) {
+    super(`Repository file enumeration exceeded the ${maxFiles}-file limit.`);
+    this.maxFiles = maxFiles;
+  }
+}
+
 export async function listRepositoryFiles(
   repositoryRoot: string,
   extensions?: ReadonlySet<string>,
+  options: ListRepositoryFilesOptions = {},
 ): Promise<string[]> {
+  const maxFiles = options.maxFiles;
+  if (maxFiles !== undefined && (!Number.isInteger(maxFiles) || maxFiles < 0)) {
+    throw new ConfigurationError("Repository file limit must be a non-negative integer.");
+  }
   const root = await normalizeRepositoryRoot(repositoryRoot);
   const files: string[] = [];
 
@@ -74,6 +92,9 @@ export async function listRepositoryFiles(
       }
       if (extensions && !extensions.has(path.extname(entry.name))) {
         continue;
+      }
+      if (maxFiles !== undefined && files.length >= maxFiles) {
+        throw new RepositoryFileLimitError(maxFiles);
       }
       files.push(toPosixPath(path.relative(root, absolutePath)));
     }

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
@@ -7,14 +7,22 @@ import {
   createModelSnapshotFinding,
   type LanguageAdapter,
   listRepositoryFiles,
+  RepositoryFileLimitError,
   resolveMigrationPath,
   resolveRepositoryFile,
 } from "@migration-doctor/core";
-import { LibCstBridge, type LibCstBridgeOptions } from "./bridge.js";
+import {
+  LibCstBridge,
+  type LibCstBridgeOptions,
+  PYTHON_MAX_CANDIDATE_FILES,
+  PYTHON_MAX_CANDIDATE_SOURCE_BYTES,
+  PYTHON_MAX_SOURCE_FILE_BYTES,
+} from "./bridge.js";
 import type { LibCstPosition, LibCstWorkerIdentity } from "./protocol.js";
 
 export const PYTHON_SOURCE_MODEL = "gpt-4o-mini-transcribe-2025-03-20";
 export const PYTHON_MODEL_RULE_ID = "openai.transcriptions.model.gpt-4o-mini-transcribe-2025-03-20";
+export const PYTHON_MAX_SOURCE_FILES = 4096;
 const PYTHON_EXTENSIONS = [".py", ".pyi"] as const;
 
 export type PythonAdapterScanMetrics = {
@@ -139,38 +147,81 @@ export class PythonLanguageAdapter implements LanguageAdapter {
     );
     let files: string[];
     try {
-      files = await listRepositoryFiles(request.repositoryRoot, new Set(this.extensions));
+      files = await listRepositoryFiles(request.repositoryRoot, new Set(this.extensions), {
+        maxFiles: PYTHON_MAX_SOURCE_FILES,
+      });
     } catch (error) {
+      if (error instanceof RepositoryFileLimitError) {
+        throw new AnalysisError(
+          `Python repository contains more than ${PYTHON_MAX_SOURCE_FILES} .py/.pyi source files; the source file limit is ${PYTHON_MAX_SOURCE_FILES}.`,
+          { cause: error },
+        );
+      }
       throw new AnalysisError("Unable to enumerate candidate Python files.", { cause: error });
     }
 
-    const candidates = (
-      await Promise.all(
-        files.map(async (relativeFile) => {
-          let bytes: Uint8Array;
-          try {
-            bytes = await readFile(resolveRepositoryFile(request.repositoryRoot, relativeFile));
-          } catch (error) {
-            throw new AnalysisError(`Unable to read candidate Python file ${relativeFile}.`, {
-              cause: error,
-            });
-          }
-          let content: string;
-          try {
-            content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
-          } catch (error) {
-            throw new AnalysisError(`Candidate Python file ${relativeFile} is not valid UTF-8.`, {
-              cause: error,
-            });
-          }
-          return content.includes(PYTHON_SOURCE_MODEL) ? { path: relativeFile, content } : null;
-        }),
-      )
-    ).filter((candidate): candidate is { path: string; content: string } => candidate !== null);
     const repositoryFiles = new Set(files);
-    const analyzableCandidates = candidates.filter(
-      (candidate) => !hasLocalOpenAiModule(candidate.path, repositoryFiles),
-    );
+    const analyzableCandidates: Array<{ path: string; content: string }> = [];
+    let candidateFiles = 0;
+    let candidateSourceBytes = 0;
+    for (const relativeFile of files) {
+      const absoluteFile = resolveRepositoryFile(request.repositoryRoot, relativeFile);
+      let preReadBytes: number;
+      try {
+        preReadBytes = (await stat(absoluteFile)).size;
+      } catch (error) {
+        throw new AnalysisError(`Unable to inspect candidate Python file ${relativeFile}.`, {
+          cause: error,
+        });
+      }
+      if (preReadBytes > PYTHON_MAX_SOURCE_FILE_BYTES) {
+        throw new AnalysisError(
+          `Python source file ${relativeFile} is ${preReadBytes} bytes before read; the per-file source limit is ${PYTHON_MAX_SOURCE_FILE_BYTES} bytes.`,
+        );
+      }
+
+      let bytes: Uint8Array;
+      try {
+        bytes = await readFile(absoluteFile);
+      } catch (error) {
+        throw new AnalysisError(`Unable to read candidate Python file ${relativeFile}.`, {
+          cause: error,
+        });
+      }
+      if (bytes.byteLength > PYTHON_MAX_SOURCE_FILE_BYTES) {
+        throw new AnalysisError(
+          `Python source file ${relativeFile} is ${bytes.byteLength} bytes after read; the per-file source limit is ${PYTHON_MAX_SOURCE_FILE_BYTES} bytes.`,
+        );
+      }
+
+      let content: string;
+      try {
+        content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+      } catch (error) {
+        throw new AnalysisError(`Candidate Python file ${relativeFile} is not valid UTF-8.`, {
+          cause: error,
+        });
+      }
+      if (!content.includes(PYTHON_SOURCE_MODEL)) {
+        continue;
+      }
+
+      candidateFiles += 1;
+      if (candidateFiles > PYTHON_MAX_CANDIDATE_FILES) {
+        throw new AnalysisError(
+          `Python analysis found ${candidateFiles} candidate files after ${relativeFile}; the candidate file limit is ${PYTHON_MAX_CANDIDATE_FILES}.`,
+        );
+      }
+      candidateSourceBytes += bytes.byteLength;
+      if (candidateSourceBytes > PYTHON_MAX_CANDIDATE_SOURCE_BYTES) {
+        throw new AnalysisError(
+          `Python candidate source total is ${candidateSourceBytes} bytes after ${relativeFile}; the aggregate source limit is ${PYTHON_MAX_CANDIDATE_SOURCE_BYTES} bytes.`,
+        );
+      }
+      if (!hasLocalOpenAiModule(relativeFile, repositoryFiles)) {
+        analyzableCandidates.push({ path: relativeFile, content });
+      }
+    }
 
     if (analyzableCandidates.length === 0) {
       return {
