@@ -1,5 +1,9 @@
 # Codex Handoff — Migration Doctor for OpenAI APIs
 
+> This is the historical bootstrap plan. For the current release state, open issues, dependency
+> order, verification commands, and next-session procedure, read
+> [`NEXT_SESSION_HANDOFF.md`](NEXT_SESSION_HANDOFF.md).
+
 ## 1. Mission
 
 Build a production-grade, unofficial developer tool that helps teams migrate OpenAI API integrations safely.

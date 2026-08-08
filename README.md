@@ -548,6 +548,7 @@ migration-doctor/
 ├── AGENTS.md
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
+├── NEXT_SESSION_HANDOFF.md
 ├── LICENSE
 ├── migration.lock
 ├── NOTICE
