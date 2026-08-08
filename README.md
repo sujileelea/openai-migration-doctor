@@ -405,8 +405,8 @@ precision and recall are not generalized beyond that corpus. The scheduled
 [SDK compatibility harness](integration/sdk-compatibility/) verifies exact multipart request bytes
 against pinned official Node and Python SDKs without contacting the OpenAI API.
 
-The published Phase 6 ledger contains 120 authored synthetic TypeScript fixture instances derived
-from 42 independent authored templates, with 95 expected findings. Supported cases produced 75 true
+The published Phase 6 ledger contains 120 generated synthetic TypeScript fixture instances derived
+from 42 independently authored templates, with 95 expected findings. Supported cases produced 75 true
 positives, 0 false positives, and 0 false negatives. Abstention cases produced 20 true positives,
 0 false positives, and 0 false negatives. This establishes exact results only for the declared
 synthetic corpus; it is not a quality claim for arbitrary repositories.
