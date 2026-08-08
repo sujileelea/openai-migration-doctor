@@ -2,7 +2,7 @@
 
 > Deterministic detection, source-grounded planning, scoped transformation, and behavioral verification for OpenAI API migrations.
 
-**Project status:** `0.1.0-alpha.1`. Local source builds support one deterministic JavaScript,
+**Project status:** [`0.1.0-alpha.1`](https://github.com/sujileelea/openai-migration-doctor/releases/tag/v0.1.0-alpha.1). Local source builds support one deterministic JavaScript,
 TypeScript, and Python model-snapshot migration end to end; review-only Assistants API analysis in
 all three languages; offline before/after behavioral contract verification; saved report bundles;
 and an opt-in Codex remediation adapter boundary. No production rule or CLI command routes a plan
@@ -570,7 +570,7 @@ The project is quality-gated rather than date-gated:
 9. **Done:** add JavaScript ESM/CommonJS coverage and the reviewed Python Assistants method and facet matrix.
 10. **Done:** add explicit repository-command verification with post-command candidate preservation.
 11. **Done:** add official-source drift, exact SDK loopback, and pinned public-repository evidence gates.
-12. **Done:** prepare the SHA-pinned `0.1.0-alpha.1` source and composite Action pre-release.
+12. **Done:** publish the SHA-pinned `0.1.0-alpha.1` source and composite Action pre-release.
 
 Each step must improve the evidence base; feature count alone is not progress.
 
