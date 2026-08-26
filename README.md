@@ -587,7 +587,8 @@ Each step must improve the evidence base; feature count alone is not progress.
 
 ## Contributing
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) and the
+Follow [CONTRIBUTING.md](CONTRIBUTING.md), the
+[branching strategy](docs/branching-strategy.md), and the
 [rule-authoring guide](docs/rule-authoring.md). Every migration rule requires:
 
 1. an official source;

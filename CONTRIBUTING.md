@@ -4,6 +4,17 @@ Start with the [rule-authoring guide](docs/rule-authoring.md) and preserve the i
 [AGENTS.md](AGENTS.md). A migration rule is incomplete without official source records, locked
 artifact hashes, positive and negative fixtures, an automation tier, and a verification contract.
 
+## Branch workflow
+
+Read the [branching strategy](docs/branching-strategy.md) before starting. `develop` is the default
+integration branch; create a scoped `<type>/<description>` branch from it and open the pull request
+back to `develop`. `main` is release-only and accepts only `release/*` or `hotfix/*` pull requests.
+The `branch-policy` required check enforces this routing.
+
+Working branches are squash-merged and deleted. Release and hotfix branches use reviewed merge
+commits into `main`, then flow back into `develop`. Never direct-push or force-push to either
+protected branch.
+
 Before opening a pull request, run:
 
 ```bash

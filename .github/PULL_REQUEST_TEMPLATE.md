@@ -2,6 +2,7 @@
 
 ## Evidence
 
+- [ ] The source and target branches follow `docs/branching-strategy.md`.
 - [ ] Source and migration artifact hashes are current.
 - [ ] Positive, negative, and abstention fixtures cover the changed boundary.
 - [ ] Lock, build, typecheck, lint, Python, test, SARIF, and benchmark gates pass.
@@ -11,3 +12,8 @@
 
 Describe any new network, repository execution, model, credential, or filesystem surface. Write
 `none` when the change introduces no new surface.
+
+## Release boundary
+
+For `release/*` or `hotfix/*`, record the version, exact evidence workflow runs, backflow PR, and
+tag plan. Write `not a release` for working branches.
