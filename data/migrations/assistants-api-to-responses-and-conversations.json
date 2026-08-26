@@ -18,20 +18,20 @@
       {
         "url": "https://developers.openai.com/api/docs/deprecations",
         "title": "Deprecations | OpenAI API",
-        "retrievedAt": "2026-08-06T05:59:25Z",
-        "contentHash": "fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962"
+        "retrievedAt": "2026-08-26T11:20:21Z",
+        "contentHash": "91292bb80f7eb37873c8ee83a02458effc0bf2e770a00ae1567da2faa7e5837a"
       },
       {
         "url": "https://developers.openai.com/api/docs/assistants/migration",
         "title": "Assistants migration guide | OpenAI API",
-        "retrievedAt": "2026-08-06T05:59:25Z",
-        "contentHash": "6620f25e6ee958973bc4eaad789ff3f9dc88641c0b69d1166819db5d37ed24e5"
+        "retrievedAt": "2026-08-26T11:20:21Z",
+        "contentHash": "0d866515c0d406e6e5a402baad1fe0ad50c10369a5929a47b74e60e487b77775"
       },
       {
         "url": "https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object",
         "title": "Migrate from prompt objects | OpenAI API",
-        "retrievedAt": "2026-08-06T05:59:25Z",
-        "contentHash": "3de9c5fe52bbd457a3b2f187aad7c7319a173a6acff35330bcfea77c566b7971"
+        "retrievedAt": "2026-08-26T11:20:21Z",
+        "contentHash": "8e19672fa070abc30cb0e71d73b6be030b98ac2ea984844f619c22e7614a5464"
       }
     ],
     "languages": ["javascript", "typescript", "python"],

@@ -1,41 +1,41 @@
 {
   "schemaVersion": "1.0.0",
-  "createdAt": "2026-08-06T05:59:25Z",
+  "createdAt": "2026-08-26T11:20:21Z",
   "artifacts": [
     {
       "kind": "source",
-      "path": "data/sources/openai-deprecations-2026-08-05.json",
-      "sha256": "4738a9b7f4041e9bfd99f58651ec9eb06dfb7a4076ff42da9bbad2bfb0540274"
+      "path": "data/sources/openai-deprecations-2026-08-26.json",
+      "sha256": "a86bc8353d92c6bc32360ec335855ef6519ea34e4b9ef2cb3d00358745852d5c"
     },
     {
       "kind": "source",
-      "path": "data/sources/openai-gpt-4o-mini-transcribe-2026-08-05.json",
-      "sha256": "6fae0611e2a48c2750775cc35ad160c312e851d9c5fbdd9da052c3dfad4d8a16"
+      "path": "data/sources/openai-gpt-4o-mini-transcribe-2026-08-26.json",
+      "sha256": "39b52157e8c175edbf573fbce6a40f8f94c772d5ee74dca0a071441a19ef1ab3"
     },
     {
       "kind": "source",
-      "path": "data/sources/openai-assistants-deprecations-2026-08-06.json",
-      "sha256": "2e7cf8bc90d310a851832f69336bb152658a28566845ec3ac012c40e872ef69d"
+      "path": "data/sources/openai-assistants-deprecations-2026-08-26.json",
+      "sha256": "49d91342ae01f17a024c9f83ba5e9a4f7b9b2dce265e0b33e46a570e0df1b7dd"
     },
     {
       "kind": "source",
-      "path": "data/sources/openai-assistants-migration-2026-08-06.json",
-      "sha256": "41bcec692f6be118880b847361c1761ef309aa9245faead92b9971b15400ffc9"
+      "path": "data/sources/openai-assistants-migration-2026-08-26.json",
+      "sha256": "1022ff03521715f89f4999a612de7daace587122441ef2c6174dee21b3904c80"
     },
     {
       "kind": "source",
-      "path": "data/sources/openai-prompt-object-migration-2026-08-06.json",
-      "sha256": "1ce764aa047a92077ff5e0995c038e5833e89330d6e2ffe4bc51c2a7dca1e03a"
+      "path": "data/sources/openai-prompt-object-migration-2026-08-26.json",
+      "sha256": "bf40a47a33e747a278cfcd6131536603739647d42e875bf43683ced5d23c21c2"
     },
     {
       "kind": "migration",
       "path": "data/migrations/gpt-4o-mini-transcribe-2025-03-20.json",
-      "sha256": "b8ee7d2aac4feaf640790f908ef29cb26b58aa272816c229971676aaf40d815b"
+      "sha256": "9bf2e98fb2c626a32bd2e35470e85702cd92cfa15e978d258491853dc04ddae6"
     },
     {
       "kind": "migration",
       "path": "data/migrations/assistants-api-to-responses-and-conversations.json",
-      "sha256": "73b489b63c508fa3031db9d2935fab09cf5022bd7772e4377b461b70d5c612d5"
+      "sha256": "9dcabfa8ada58bdb3bdebc98ac60aa0beb723280ccf777e65889a8ef90b42e7c"
     }
   ]
 }

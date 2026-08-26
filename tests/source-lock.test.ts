@@ -40,6 +40,17 @@ async function copyLockedData(): Promise<string> {
   return temporaryRoot;
 }
 
+async function firstLockedSourcePath(root: string): Promise<string> {
+  const lock = JSON.parse(await readFile(path.join(root, "migration.lock"), "utf8")) as {
+    artifacts: Array<{ kind: string; path: string }>;
+  };
+  const source = lock.artifacts.find((artifact) => artifact.kind === "source");
+  if (!source) {
+    throw new Error("Test fixture migration.lock must contain a source artifact.");
+  }
+  return source.path;
+}
+
 async function addMigrationArtifact(
   root: string,
   fileName: string,
@@ -141,10 +152,8 @@ describe("source lock", () => {
 
   it("fails closed when a locked artifact changes", async () => {
     const temporaryRoot = await copyLockedData();
-    await appendFile(
-      path.join(temporaryRoot, "data/sources/openai-deprecations-2026-08-05.json"),
-      " ",
-    );
+    const relativePath = await firstLockedSourcePath(temporaryRoot);
+    await appendFile(path.join(temporaryRoot, relativePath), " ");
 
     await expect(loadMigrationRegistry(temporaryRoot)).rejects.toBeInstanceOf(SourceLockError);
     await expect(loadMigrationRegistry(temporaryRoot)).rejects.toThrow("hash mismatch");
@@ -152,7 +161,7 @@ describe("source lock", () => {
 
   it("hashes exact artifact bytes and rejects invalid UTF-8", async () => {
     const temporaryRoot = await copyLockedData();
-    const relativePath = "data/sources/openai-deprecations-2026-08-05.json";
+    const relativePath = await firstLockedSourcePath(temporaryRoot);
     const artifactPath = path.join(temporaryRoot, relativePath);
     const invalidUtf8 = Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0xc3, 0x28, 0x7d]);
     await writeFile(artifactPath, invalidUtf8);
@@ -177,7 +186,8 @@ describe("source lock", () => {
 
   it("rejects a locked artifact symlink that escapes the project root", async () => {
     const temporaryRoot = await copyLockedData();
-    const artifact = path.join(temporaryRoot, "data/sources/openai-deprecations-2026-08-05.json");
+    const relativePath = await firstLockedSourcePath(temporaryRoot);
+    const artifact = path.join(temporaryRoot, relativePath);
     await unlink(artifact);
     await symlink(path.join(PROJECT_ROOT, "README.md"), artifact);
 

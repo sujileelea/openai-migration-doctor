@@ -2,7 +2,7 @@
 
 ## Source provenance
 
-The first rule was reviewed on 2026-08-05 against two official OpenAI pages:
+The current locked rule was reviewed on 2026-08-26 against two official OpenAI pages:
 
 - [API deprecations](https://developers.openai.com/api/docs/deprecations)
 - [GPT-4o mini Transcribe](https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe)
@@ -22,11 +22,11 @@ curl -fsSL https://developers.openai.com/api/docs/deprecations.md | shasum -a 25
 curl -fsSL https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe.md | shasum -a 256
 ```
 
-Expected hashes for this review are:
+Expected hashes for the 2026-08-26 review are:
 
 ```text
-fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962
-da0d59ea4a9c17f571f28a3a721ed7e45df6bc7bad283f27378905a7f07cab44
+91292bb80f7eb37873c8ee83a02458effc0bf2e770a00ae1567da2faa7e5837a
+6e5742660a9412a614b0380a9547f061f455a7afc6e1ec7aadcffec490ccbc3e
 ```
 
 A mismatch means the upstream page changed. Reviewers must fetch the new content
@@ -45,12 +45,12 @@ The deprecation was announced on 2026-07-20 and the deprecated model snapshot is
 
 ## Assistants source provenance
 
-The Phase 3 product review was retrieved on 2026-08-06 at
-`2026-08-06T05:59:25Z` and is recorded in three dated source artifacts:
+The current product review was retrieved on 2026-08-26 at
+`2026-08-26T11:20:21Z` and is recorded in three dated source artifacts:
 
-- [`openai-assistants-deprecations-2026-08-06.json`](../data/sources/openai-assistants-deprecations-2026-08-06.json), reviewing [API deprecations](https://developers.openai.com/api/docs/deprecations);
-- [`openai-assistants-migration-2026-08-06.json`](../data/sources/openai-assistants-migration-2026-08-06.json), reviewing the [Assistants migration guide](https://developers.openai.com/api/docs/assistants/migration);
-- [`openai-prompt-object-migration-2026-08-06.json`](../data/sources/openai-prompt-object-migration-2026-08-06.json), reviewing [Migrate from prompt objects](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object).
+- [`openai-assistants-deprecations-2026-08-26.json`](../data/sources/openai-assistants-deprecations-2026-08-26.json), reviewing [API deprecations](https://developers.openai.com/api/docs/deprecations);
+- [`openai-assistants-migration-2026-08-26.json`](../data/sources/openai-assistants-migration-2026-08-26.json), reviewing the [Assistants migration guide](https://developers.openai.com/api/docs/assistants/migration);
+- [`openai-prompt-object-migration-2026-08-26.json`](../data/sources/openai-prompt-object-migration-2026-08-26.json), reviewing [Migrate from prompt objects](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object).
 
 The records hash the exact bytes returned by the corresponding official `.md`
 endpoints. Reviewers can reproduce the upstream hashes with:
@@ -61,12 +61,12 @@ curl -fsSL https://developers.openai.com/api/docs/assistants/migration.md | shas
 curl -fsSL https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object.md | shasum -a 256
 ```
 
-Expected hashes for the 2026-08-06 review, in command order, are:
+Expected hashes for the 2026-08-26 review, in command order, are:
 
 ```text
-fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962
-6620f25e6ee958973bc4eaad789ff3f9dc88641c0b69d1166819db5d37ed24e5
-3de9c5fe52bbd457a3b2f187aad7c7319a173a6acff35330bcfea77c566b7971
+91292bb80f7eb37873c8ee83a02458effc0bf2e770a00ae1567da2faa7e5837a
+0d866515c0d406e6e5a402baad1fe0ad50c10369a5929a47b74e60e487b77775
+8e19672fa070abc30cb0e71d73b6be030b98ac2ea984844f619c22e7614a5464
 ```
 
 The deprecation record states that developers were notified on 2025-08-26 and

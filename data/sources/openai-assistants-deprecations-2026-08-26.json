@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "openai.deprecations.assistants.2026-08-26",
+  "source": {
+    "url": "https://developers.openai.com/api/docs/deprecations",
+    "title": "Deprecations | OpenAI API",
+    "retrievedAt": "2026-08-26T11:20:21Z",
+    "contentHash": "91292bb80f7eb37873c8ee83a02458effc0bf2e770a00ae1567da2faa7e5837a"
+  },
+  "claims": [
+    "The Assistants API was deprecated on 2025-08-26 and is scheduled to be removed on 2026-08-26.",
+    "The recommended replacement for the Assistants API is the Responses API and Conversations API.",
+    "Reusable prompt objects were deprecated on 2026-06-03, and the v1/prompts API is scheduled to shut down on 2026-11-30.",
+    "Reusable prompt content should move into application code."
+  ]
+}
