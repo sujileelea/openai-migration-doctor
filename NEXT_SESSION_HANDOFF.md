@@ -1,7 +1,8 @@
 # Next Session Handoff
 
-Updated on 2026-08-27 (Asia/Seoul) with the application-work handoff and protected
-`develop`/`main` branch contract.
+Updated on 2026-08-27 (Asia/Seoul) after source-drift recovery, preparation of the external
+Developer Experience evidence loop, and establishment of the protected `develop`/`main` branch
+contract.
 
 > Active application work spans two local branches. Read
 > [`APPLICATION_HANDOFF.md`](APPLICATION_HANDOFF.md) first for the role-aligned objective, exact
@@ -21,6 +22,22 @@ Updated on 2026-08-27 (Asia/Seoul) with the application-work handoff and protect
 
 `CODEX_HANDOFF.md` is the historical bootstrap plan. It explains why the architecture exists, but
 it is not the current work ledger.
+
+## 2026-08-26 maintenance and evidence-loop update
+
+- Four current official Markdown documents were re-reviewed after scheduled source-drift failures.
+  New dated records now lock the reviewed deprecations, Transcribe model, Assistants migration, and
+  prompt-object migration bytes without overwriting historical records.
+- Source-lock regression tests now resolve the current locked source artifact instead of depending
+  on an obsolete dated filename.
+- The [external first-use protocol](docs/first-use-study.md) and deterministic anonymized evidence
+  summarizer are implemented. Issue #4 remains open until the owner recruits participants, at least
+  three sessions are completed, and the two highest-impact reproducible friction points are fixed
+  or filed.
+- The [Developer Experience case study](docs/developer-experience-case-study.md),
+  [90-second demo runbook](docs/demo-90-seconds.md), and
+  [product-feedback ledger](docs/product-feedback.md) make the project rationale and evidence
+  boundaries explicit. The recorded video and external observations are not yet claimed.
 
 ## Shipped baseline
 
