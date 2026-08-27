@@ -114,7 +114,11 @@ corepack pnpm usability:summarize -- /path/to/anonymized-evidence.json \
 ```
 
 Review the summary before adding it to the repository. A generated summary is evidence only for its
-frozen revision and observed sample.
+frozen revision and observed sample. Its friction-candidate table ranks controlled categories by
+within-sample impact: an occurrence in a completed session scores `1`, a failed session scores `2`,
+and a stopped session scores `3`; ties use frequency and then the fixed schema order. Treat that
+table only as a triage queue. Reproduce each candidate before selecting the two product responses,
+and do not present the score as a usability benchmark.
 
 ## Completion criteria
 
@@ -123,7 +127,7 @@ The study round is complete only when:
 1. at least three sessions are represented, including JavaScript or TypeScript and Python when
    recruitment permitted;
 2. time-to-first-report and completion outcomes are reported without generalization;
-3. the two highest-impact reproducible friction points are fixed with regression tests or filed as
-   scoped follow-up issues;
+3. the ranked candidates have been reproduced and the two highest-impact reproducible friction
+   points are fixed with regression tests or filed as scoped follow-up issues;
 4. README or quickstart claims cite only the checked-in anonymized summary;
 5. no raw participant notes or identifying information enter the repository.

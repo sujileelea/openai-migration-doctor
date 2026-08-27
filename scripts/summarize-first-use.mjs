@@ -13,6 +13,11 @@ const TRACKS = ["source-build", "github-action"];
 const LANGUAGES = ["javascript", "typescript", "python"];
 const OPERATING_SYSTEMS = ["macos", "linux", "windows"];
 const OUTCOMES = ["completed", "failed", "stopped"];
+const OUTCOME_IMPACT = {
+  completed: 1,
+  failed: 2,
+  stopped: 3,
+};
 const SETUP_FAILURES = [
   "prerequisite-missing",
   "install-failure",
@@ -193,6 +198,57 @@ function median(values) {
   return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+export function rankFrictionCandidates(sessions) {
+  const candidates = [
+    ...SETUP_FAILURES.map((category, order) => ({
+      category,
+      impactScore: 0,
+      key: `setup:${category}`,
+      order,
+      sessionCount: 0,
+    })),
+    ...INTERPRETATION_ERRORS.map((category, order) => ({
+      category,
+      impactScore: 0,
+      key: `interpretation:${category}`,
+      order: SETUP_FAILURES.length + order,
+      sessionCount: 0,
+    })),
+  ];
+  const byKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
+  const candidateFor = (key) => {
+    const candidate = byKey.get(key);
+    if (!candidate) {
+      throw new UsabilityEvidenceError(`Unknown friction category: ${key}.`);
+    }
+    return candidate;
+  };
+
+  for (const session of sessions) {
+    const impact = OUTCOME_IMPACT[session.outcome];
+    for (const category of session.setupFailures) {
+      const candidate = candidateFor(`setup:${category}`);
+      candidate.sessionCount += 1;
+      candidate.impactScore += impact;
+    }
+    for (const category of session.interpretationErrors) {
+      const candidate = candidateFor(`interpretation:${category}`);
+      candidate.sessionCount += 1;
+      candidate.impactScore += impact;
+    }
+  }
+
+  return candidates
+    .filter((candidate) => candidate.sessionCount > 0)
+    .sort(
+      (left, right) =>
+        right.impactScore - left.impactScore ||
+        right.sessionCount - left.sessionCount ||
+        left.order - right.order,
+    )
+    .map(({ order: _order, ...candidate }) => candidate);
+}
+
 export function summarizeFirstUseEvidence(evidence) {
   const completedTimes = evidence.sessions
     .filter((session) => session.outcome === "completed")
@@ -228,6 +284,7 @@ export function summarizeFirstUseEvidence(evidence) {
       evidence.sessions.flatMap((session) => session.interpretationErrors),
       INTERPRETATION_ERRORS,
     ),
+    frictionCandidates: rankFrictionCandidates(evidence.sessions),
     nextActions: countValues(
       evidence.sessions.map((session) => session.nextAction),
       NEXT_ACTIONS,
@@ -257,6 +314,17 @@ export function renderFirstUseSummary(evidence) {
   const timeLine = completedTime
     ? `${completedTime.medianSeconds} seconds median (${completedTime.minimumSeconds}–${completedTime.maximumSeconds} seconds).`
     : "No participant completed a first report.";
+  const frictionRows =
+    summary.frictionCandidates.length === 0
+      ? ["None observed."]
+      : [
+          "| Rank | Category | Sessions | Impact score |",
+          "| ---: | --- | ---: | ---: |",
+          ...summary.frictionCandidates.map(
+            (candidate, index) =>
+              `| ${index + 1} | ${candidate.key} | ${candidate.sessionCount} | ${candidate.impactScore} |`,
+          ),
+        ];
   return [
     "# External first-use study summary",
     "",
@@ -291,6 +359,12 @@ export function renderFirstUseSummary(evidence) {
     "## Report-interpretation errors",
     "",
     nonzeroRows(summary.interpretationErrors),
+    "",
+    "## Friction triage candidates",
+    "",
+    "The impact score is a within-sample triage aid: each category occurrence scores 1 for a completed session, 2 for a failed session, and 3 for a stopped session. Reproduce a candidate before fixing or filing it; this score is not a usability benchmark.",
+    "",
+    ...frictionRows,
     "",
     "## Next actions selected",
     "",

@@ -84,8 +84,27 @@ describe("external first-use evidence", () => {
     expect(report).toContain("| completed | 2 |");
     expect(report).toContain("| prerequisite-missing | 1 |");
     expect(report).toContain("| exit-code | 1 |");
+    expect(report).toContain("| 1 | setup:prerequisite-missing | 1 | 2 |");
+    expect(report).toContain("| 2 | setup:command-confusion | 1 | 1 |");
+    expect(report).toContain("| 3 | interpretation:exit-code | 1 | 1 |");
+    expect(report).toContain("Reproduce a candidate before fixing or filing it");
     expect(report).toContain("not representative of all OpenAI developers");
     expect(report).not.toContain("P01");
+  });
+
+  it("ranks friction deterministically by impact, frequency, and controlled category order", () => {
+    const evidence = validEvidence();
+    sessionAt(evidence, 0).setupFailures = ["command-confusion"];
+    sessionAt(evidence, 1).setupFailures = ["command-confusion", "build-failure"];
+    sessionAt(evidence, 2).setupFailures = ["build-failure"];
+
+    const report = renderFirstUseSummary(parseFirstUseEvidence(evidence));
+
+    expect(report.indexOf("setup:build-failure")).toBeLessThan(
+      report.indexOf("setup:command-confusion"),
+    );
+    expect(report).toContain("| 1 | setup:build-failure | 2 | 3 |");
+    expect(report).toContain("| 2 | setup:command-confusion | 2 | 2 |");
   });
 
   it("rejects free-form participant notes and duplicate participant IDs", () => {

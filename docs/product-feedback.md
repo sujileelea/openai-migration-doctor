@@ -43,8 +43,9 @@ Use the [external first-use protocol](first-use-study.md). When a study round fi
 1. freeze and record the exact tool revision;
 2. generate a deterministic aggregate with `corepack pnpm usability:summarize`;
 3. add only the reviewed anonymized summary;
-4. rank reproducible friction by completion impact, frequency, and severity;
-5. fix the two highest-impact items with tests or file scoped follow-up issues;
+4. use the generated friction-candidate order as the triage queue, reproduce each candidate, and
+   preserve the outcome behind any rejected candidate;
+5. fix the two highest-impact reproducible items with tests or file scoped follow-up issues;
 6. update this ledger and any README or quickstart claim in the same change.
 
 Raw participant notes, quotes, consent records, private repository details, and identifying metadata
