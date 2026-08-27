@@ -45,7 +45,7 @@ IDs; resolve the self-referential handoff commit itself with `git rev-parse HEAD
 | Ref | Commit | State and purpose |
 | --- | --- | --- |
 | `origin/main`, `main` | `479d6cca8f13bd00646838927803a5773be1a594` | Released-code branch; unchanged by application work |
-| `origin/develop` | `639e4648d5e0577dfc2e2cfcacdc33b5187140fe` | Governance and Developer Experience evidence after PRs #21 and #22 |
+| `origin/develop` | Resolve at session start; product-evidence baseline `639e4648d5e0577dfc2e2cfcacdc33b5187140fe` | Default integration branch; handoff-only docs PRs may advance this ref |
 | `origin/chore/branch-governance` | `f0a8ceb3ab22bd99422b59b069bed70d0eb687f2` | Source branch for merged PR #21; retained as a fallback ref |
 | merged PR #22 source | `bcb0cee2cf077752ab9ee1755704ca238261916a` | Eight reviewed DX commits; remote source branch was deleted automatically after merge |
 
