@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "openai.assistants.migration.2026-08-26",
+  "source": {
+    "url": "https://developers.openai.com/api/docs/assistants/migration",
+    "title": "Assistants migration guide | OpenAI API",
+    "retrievedAt": "2026-08-26T11:20:21Z",
+    "contentHash": "0d866515c0d406e6e5a402baad1fe0ad50c10369a5929a47b74e60e487b77775"
+  },
+  "claims": [
+    "Assistants were persistent API objects that bundled model choice, instructions, and tool declarations.",
+    "Threads stored messages, while Conversations store Items including messages, tool calls, tool outputs, and other data.",
+    "Runs map to Responses, and Run steps map to Items.",
+    "Responses can be used alone or with Conversation objects for stored context.",
+    "OpenAI will not provide an automated tool for migrating Threads to Conversations.",
+    "Application code owns history pruning, tool loops, and retries in the new architecture.",
+    "The guide warns that reusable Prompt objects are also deprecated."
+  ]
+}

@@ -4,7 +4,7 @@ Updated on 2026-08-27 (Asia/Seoul). This is the active handoff for the work that
 Doctor as evidence for the
 [Developer Experience Engineer role in Seoul](https://openai.com/careers/developer-experience-engineer-seoul-south-korea/).
 `NEXT_SESSION_HANDOFF.md` remains the detailed product ledger; this document explains the
-application objective, the two local work lines, and the safe order for continuing them.
+application objective, the two work lines, and the safe order for continuing them.
 
 ## Mission
 
@@ -37,24 +37,21 @@ an unofficial pre-alpha project and not an OpenAI product or endorsement.
 - `main` is release-only. Routine work starts from and targets `develop` after the remote transition
   is complete.
 
-## Git state at handoff
+## Git and GitHub state at handoff
 
-The worktree was clean when this handoff was written. Stable content anchors use full local commit
+The worktree was clean when this handoff was updated. Stable content anchors use full commit
 IDs; resolve the self-referential handoff commit itself with `git rev-parse HEAD`.
 
 | Ref | Commit | State and purpose |
 | --- | --- | --- |
-| `origin/main`, `main` | `479d6cca8f13bd00646838927803a5773be1a594` | Current public default and released-code branch |
-| `develop` | `479d6cca8f13bd00646838927803a5773be1a594` | Local integration baseline; not on the remote |
-| `chore/branch-governance` | `HEAD` (implementation anchor `2c366e918e21d1c610f96d59df32c5c4a35af68f`) | Two commits ahead of `develop`; current branch; local only |
-| `feat/dx-evidence-loop` | `bb16ae41fd1d2bda2f9b8fc93a3e5a8346d06c4f` | Three commits ahead of `develop`; local only |
+| `origin/main`, `main` | `479d6cca8f13bd00646838927803a5773be1a594` | Released-code branch; unchanged by application work |
+| `origin/develop` | `00d02c308f6de09a3a13d339d3c9d7123d131402` | Default integration branch after governance PR #21 |
+| `origin/chore/branch-governance` | `f0a8ceb3ab22bd99422b59b069bed70d0eb687f2` | Source branch for merged PR #21; retained as a fallback ref |
+| `origin/feat/dx-evidence-loop` | `HEAD` (verification anchor `cbe785270e2929e126a4a88403ed86e0655d608a`) | Eight DX commits rebased directly on `origin/develop` |
 
-The remote currently has only `main` and the older `docs/next-session-handoff` branch. There are no
-open pull requests. As verified on 2026-08-27, GitHub still uses `main` as its default branch and no
-remote `develop` branch exists.
-
-Do not combine the two active local lines into one undifferentiated push. Governance must land on
-`develop` first; the Developer Experience evidence branch follows it.
+GitHub uses `develop` as its default branch. PR #21 was squash-merged and its target-branch
+`verify` plus both migration-audit jobs passed. The Developer Experience branch is ready for its
+own PR to `develop`.
 
 ## Work line A — branch governance
 
@@ -63,7 +60,7 @@ Branch: `chore/branch-governance`
 Commits:
 
 - `2c366e918e21d1c610f96d59df32c5c4a35af68f` — `chore: establish protected develop workflow`
-- `HEAD` — `docs: add application work handoff` (this document; resolve its hash locally)
+- `f0a8ceb3ab22bd99422b59b069bed70d0eb687f2` — `docs: add application work handoff`
 
 This line implements a lightweight GitFlow contract:
 
@@ -94,13 +91,7 @@ The benchmark timings are local measurements, not release guarantees.
 
 Branch: `feat/dx-evidence-loop`
 
-Commits, in order:
-
-1. `2ddfb90376b91325dfc0fb780e42c4f8577326dc` — `chore: refresh reviewed OpenAI source records`
-2. `532749fcb965641da40e1ad4419518de141bbcbc` — `feat: add external first-use evidence workflow`
-3. `bb16ae41fd1d2bda2f9b8fc93a3e5a8346d06c4f` — `docs: publish Developer Experience case study`
-
-Important files exist on that branch, not on the current governance branch:
+Important files introduced by that branch are:
 
 - `docs/developer-experience-case-study.md` — explains why the project was built for this role,
   maps evidence gaps to concrete project choices, and states honest limitations;
@@ -114,14 +105,27 @@ Important files exist on that branch, not on the current governance branch:
 - new dated official-source records and an updated `migration.lock` after four upstream documents
   changed.
 
-Verification recorded at `bb16ae41fd1d2bda2f9b8fc93a3e5a8346d06c4f`:
+The eight DX commits are:
+
+1. `cd19ead` — `chore: refresh reviewed OpenAI source records`
+2. `1a4a374` — `feat: add external first-use evidence workflow`
+3. `d196e10` — `docs: publish Developer Experience case study`
+4. `52b2811` — `feat: rank first-use friction candidates`
+5. `6642bcc` — `chore: automate demo recording preflight`
+6. `e42bfe3` — `fix: accept pnpm script argument separator`
+7. `59126d1` — `chore: refresh prompt migration source record`
+8. `HEAD` — `docs: refresh application handoff after branch push`
+
+Verification recorded at `cbe785270e2929e126a4a88403ed86e0655d608a`:
 
 - install, uv lock/sync, build, typecheck, lint, format, and Python checks passed;
-- 18 test files and 220 tests passed;
+- 20 test files and 239 tests passed;
 - SARIF schema validation passed;
 - five current reviewed source records across four official documents passed the drift check;
-- the demo smoke test generated Markdown, JSON, SARIF, and HTML and returned expected finding exit
-  `1`.
+- the demo rehearsal generated Markdown, JSON, SARIF, and HTML and returned expected finding exit
+  `1`;
+- the clean-worktree benchmark passed with 120 fixtures, precision `1.0000`, recall `1.0000`, cold
+  `208.41 ms`, and warm `76.53 ms`.
 
 No demo video or external participant results have been claimed. Those remain pending evidence.
 
@@ -129,68 +133,37 @@ No demo video or external participant results have been claimed. Those remain pe
 
 Read-only verification on 2026-08-27 found:
 
-- default branch: `main`;
-- `main` requires a pull request, administrator enforcement, resolved strict status checks, linear
-  history, and disallows force pushes and deletion;
-- current required checks: `verify`, `Migration audit (ubuntu-latest)`, and
-  `Migration audit (macos-latest)`;
-- squash, merge-commit, and rebase merge methods are all enabled;
-- automatic source-branch deletion is disabled.
+- default branch: `develop`;
+- `develop` exists remotely and requires a pull request, all four up-to-date checks, resolved
+  conversations, administrator enforcement, and disabled force push/deletion;
+- `main` keeps the same protection set while remaining release-only;
+- required checks on both protected branches: `branch-policy`, `verify`,
+  `Migration audit (ubuntu-latest)`, and `Migration audit (macos-latest)`;
+- squash and merge-commit methods are enabled; rebase merge is disabled;
+- automatic source-branch deletion is enabled.
 
-These are current facts, not the target state. The target policy needs release-boundary merge
-commits, so the current `main` linear-history requirement must eventually be removed. Do not change
-it before the governance workflow is live and the owner approves the exact remote transition.
+Both branches require pull requests, strict up-to-date checks, resolved conversations, and
+administrator enforcement. Linear history, force pushes, and protected-branch deletion are
+disabled as required by the checked-in release-boundary contract.
 
 ## Safe continuation order
 
-### Phase 1 — bootstrap `develop` and open the governance PR
+### Phase 1 — merge the reviewed governance PR — complete
 
-Obtain explicit owner approval, then:
+PR #21 was squash-merged as `00d02c308f6de09a3a13d339d3c9d7123d131402`. Its target-branch
+`verify` and both migration-audit jobs passed.
 
-1. recheck the worktree, local refs, remote heads, open PRs, and required workflow status;
-2. publish local `develop` at the exact current `origin/main` commit;
-3. apply temporary `develop` protection with the three existing strict required checks,
-   administrator enforcement, resolved conversations, and disabled force push/deletion; do not
-   require `branch-policy` before that workflow exists on the base branch;
-4. push `chore/branch-governance` and open a PR to `develop`;
-5. wait for every check that starts and run the policy script locally; if GitHub also starts the new
-   `branch-policy` job from the pull request, require it to pass;
-6. do not merge until the owner explicitly approves the reviewed PR.
+### Phase 2 — finish remote governance — complete
 
-This bootstrap is the only planned direct creation of remote `develop`; it must not become a
-general direct-push exception.
+The target default branch, required checks, administrator enforcement, conversation resolution,
+merge methods, and deletion settings were applied and read back through the GitHub API.
 
-### Phase 2 — finish remote governance
+### Phase 3 — open and merge the DX evidence PR
 
-After the governance PR is approved and merged into `develop`:
+The branch was rebased on `origin/develop`, verified, and updated with an exact lease. Open its PR
+against `develop`, wait for all four required checks and any code-scanning check, then squash merge.
 
-1. make `develop` the GitHub default branch;
-2. require `branch-policy`, `verify`, and both migration-audit jobs on both protected branches;
-3. keep administrator enforcement, resolved conversations, and disabled force push/deletion;
-4. remove required linear history so only the documented release/hotfix routes can retain merge
-   commits;
-5. keep squash and merge-commit methods, disable rebase merge, and enable automatic head-branch
-   deletion;
-6. verify all settings through read-only GitHub API calls and record the result.
-
-Repository settings and the default-branch change are owner decisions. Apply only the subset the
-owner explicitly authorizes.
-
-### Phase 3 — integrate the DX evidence branch
-
-After governance is live:
-
-1. update local `develop` from `origin/develop`;
-2. rebase the still-local `feat/dx-evidence-loop` onto `develop`;
-3. expect overlaps in `NEXT_SESSION_HANDOFF.md`, `README.md`, and `package.json`; retain both the
-   new branch contract and the newer evidence-loop facts;
-4. rerun every repository Definition-of-Done gate, source drift, demo smoke, SARIF validation, and
-   clean-worktree benchmark;
-5. push only after owner approval and open the PR against `develop`;
-6. wait for required checks and obtain a separate merge decision.
-
-Do not target this feature branch at `main` and do not bypass the governance PR by merging the two
-local branches first.
+Do not target this feature branch at `main` and do not bypass the governance PR.
 
 ### Phase 4 — produce the missing application evidence
 
@@ -215,7 +188,7 @@ external owner actions.
 The project is ready to serve as this role's deliberate portfolio evidence when:
 
 - the protected `develop`/release-only `main` topology is live and verified;
-- both local work lines have landed through reviewed PRs with green required checks;
+- both work lines have landed through reviewed PRs with green required checks;
 - the case study links an exact public revision and makes the role-aligned product decisions easy
   to scan;
 - the English demo is recorded from that exact revision and contains no private information;

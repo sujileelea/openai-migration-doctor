@@ -14,7 +14,12 @@ by OpenAI. External material is governed by the repository's
 [provenance policy](docs/provenance.md).
 
 Start with the [five-minute quickstart](docs/quickstart.md), or inspect the sanitized
-[sample report bundle](examples/sample-report/).
+[sample report bundle](examples/sample-report/). The
+[external first-use protocol](docs/first-use-study.md) defines how independent developers can test
+the workflow without exposing private source or credentials. For the project rationale and teaching
+assets, read the [Developer Experience case study](docs/developer-experience-case-study.md),
+[90-second demo runbook](docs/demo-90-seconds.md), and
+[product feedback ledger](docs/product-feedback.md).
 
 ## Why this exists
 
@@ -532,6 +537,10 @@ migration-doctor/
 ├── docs/
 │   ├── architecture.md
 │   ├── assistants-rule-matrix.md
+│   ├── demo-90-seconds.md
+│   ├── developer-experience-case-study.md
+│   ├── first-use-study.md
+│   ├── product-feedback.md
 │   ├── public-repository-evaluation.md
 │   ├── source-drift.md
 │   ├── quickstart.md

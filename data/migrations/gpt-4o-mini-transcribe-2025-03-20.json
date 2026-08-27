@@ -18,14 +18,14 @@
       {
         "url": "https://developers.openai.com/api/docs/deprecations",
         "title": "Deprecations | OpenAI API",
-        "retrievedAt": "2026-08-05T08:14:03Z",
-        "contentHash": "fb7c700f0de0a5354a14d54eb3ae83b6ed3e7df31ed446da9e795163d66a9962"
+        "retrievedAt": "2026-08-26T11:20:21Z",
+        "contentHash": "91292bb80f7eb37873c8ee83a02458effc0bf2e770a00ae1567da2faa7e5837a"
       },
       {
         "url": "https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe",
         "title": "GPT-4o mini Transcribe Model | OpenAI API",
-        "retrievedAt": "2026-08-05T08:14:03Z",
-        "contentHash": "da0d59ea4a9c17f571f28a3a721ed7e45df6bc7bad283f27378905a7f07cab44"
+        "retrievedAt": "2026-08-26T11:20:21Z",
+        "contentHash": "6e5742660a9412a614b0380a9547f061f455a7afc6e1ec7aadcffec490ccbc3e"
       }
     ],
     "languages": ["javascript", "typescript", "python"],
