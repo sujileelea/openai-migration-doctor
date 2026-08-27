@@ -140,17 +140,18 @@ function usage() {
 }
 
 export async function runCli(argv) {
-  if (argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h")) {
+  const args = argv[0] === "--" ? argv.slice(1) : argv;
+  if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
     process.stdout.write(usage());
     return 0;
   }
-  if (argv.length > 1 || (argv.length === 1 && argv[0] !== "--rehearsal")) {
+  if (args.length > 1 || (args.length === 1 && args[0] !== "--rehearsal")) {
     process.stderr.write(usage());
     return 2;
   }
 
   try {
-    const result = await prepareDemo({ rehearsal: argv[0] === "--rehearsal" });
+    const result = await prepareDemo({ rehearsal: args[0] === "--rehearsal" });
     process.stdout.write(
       [
         "Demo preflight passed.",

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -5,10 +6,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DemoPreflightError,
   EXPECTED_REPORT_FILES,
+  PROJECT_ROOT,
   parseRemoteRefs,
   validateReportBundle,
 } from "../scripts/prepare-demo.mjs";
 
+const SCRIPT_PATH = path.join(PROJECT_ROOT, "scripts", "prepare-demo.mjs");
 const temporaryDirectories: string[] = [];
 
 async function createReportBundle() {
@@ -62,5 +65,18 @@ describe("demo preflight", () => {
       "origin/develop",
       "origin/release/v0.2.0",
     ]);
+  });
+
+  it("accepts the pnpm argument separator used by the documented command", () => {
+    const result = spawnSync(process.execPath, [SCRIPT_PATH, "--", "--help"], {
+      cwd: PROJECT_ROOT,
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("Usage: node scripts/prepare-demo.mjs [--rehearsal]\n");
   });
 });

@@ -378,12 +378,13 @@ function usage() {
 }
 
 export async function runCli(argv) {
-  if (argv.length !== 1 || argv[0] === "--help" || argv[0] === "-h") {
+  const args = argv[0] === "--" ? argv.slice(1) : argv;
+  if (args.length !== 1 || args[0] === "--help" || args[0] === "-h") {
     process.stdout.write(usage());
-    return argv.length === 1 ? 0 : 2;
+    return args.length === 1 ? 0 : 2;
   }
   try {
-    const inputPath = path.resolve(argv[0]);
+    const inputPath = path.resolve(args[0]);
     const raw = await readFile(inputPath, "utf8");
     const evidence = parseFirstUseEvidence(JSON.parse(raw));
     process.stdout.write(renderFirstUseSummary(evidence));

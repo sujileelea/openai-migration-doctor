@@ -136,7 +136,7 @@ describe("external first-use evidence", () => {
     const inputPath = path.join(directory, "evidence.json");
     await writeFile(inputPath, `${JSON.stringify(validEvidence(), null, 2)}\n`);
 
-    const result = spawnSync(process.execPath, [SCRIPT_PATH, inputPath], {
+    const result = spawnSync(process.execPath, [SCRIPT_PATH, "--", inputPath], {
       cwd: PROJECT_ROOT,
       encoding: "utf8",
       timeout: 10_000,
