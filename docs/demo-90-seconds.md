@@ -18,10 +18,24 @@ source, or claims beyond the reviewed pre-alpha contract.
 Run before screen recording:
 
 ```bash
+git fetch --prune origin
 git status --short
 git rev-parse HEAD
 corepack pnpm build
+corepack pnpm demo:prepare
+```
 
+The preflight requires a clean worktree, a 40-character revision contained by an `origin` remote
+tracking branch, expected finding exit `1`, and an exact non-empty four-file report bundle. Before
+the PR is public, rehearse without claiming recording readiness:
+
+```bash
+corepack pnpm demo:prepare -- --rehearsal
+```
+
+For the recording itself, prepare a fresh path and run the same report command visibly:
+
+```bash
 DEMO_PARENT="$(mktemp -d)"
 corepack pnpm run doctor report fixtures/typescript/direct-model-literal \
   --output "$DEMO_PARENT/report"

@@ -96,7 +96,7 @@ build → teach → observe developers → synthesize feedback → improve the p
 | Stage | Current evidence | Honest status |
 | --- | --- | --- |
 | Build | Public CLI, Action, reports, analyzers, verification, and pre-release | Complete for the declared pre-alpha scope |
-| Teach | English quickstart, sample report, technical docs, and 90-second demo runbook | Written; video recording is pending |
+| Teach | English quickstart, sample report, technical docs, 90-second demo runbook, and deterministic recording preflight | Prepared; video recording is pending |
 | Observe | Frozen-revision first-use protocol and anonymized summary schema | Instrumented; no external sessions claimed yet |
 | Synthesize | Product-feedback ledger separates official-source observations, internal hypotheses, and external evidence | Ready for external results |
 | Improve | Source-drift maintenance already produced a tested fix; usability fixes require participant evidence | Partially demonstrated |
