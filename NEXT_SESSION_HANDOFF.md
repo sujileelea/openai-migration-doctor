@@ -1,10 +1,12 @@
 # Next Session Handoff
 
-Updated on 2026-08-27 (Asia/Seoul) after follow-up source-drift recovery, preparation of the
-external Developer Experience evidence loop, and establishment of the protected `develop`/`main`
-branch contract.
+Updated on 2026-08-27 (Asia/Seoul) after follow-up source-drift recovery, merge of the external
+Developer Experience evidence loop, establishment of the protected `develop`/`main` contract,
+and production of the first reviewed demo candidate.
 
-> Branch governance is live and the Developer Experience evidence branch is ready for review. Read
+> Branch governance and the Developer Experience evidence loop are live on `develop`. Recruitment
+> is open, the completed external-session count is zero, and the 86-second demo candidate is not yet
+> published. Read
 > [`APPLICATION_HANDOFF.md`](APPLICATION_HANDOFF.md) first for the role-aligned objective, exact
 > commits, verified evidence, remote transition sequence, and owner-decision boundaries.
 
@@ -39,7 +41,14 @@ it is not the current work ledger.
 - The [Developer Experience case study](docs/developer-experience-case-study.md),
   [90-second demo runbook](docs/demo-90-seconds.md) with a deterministic preflight, and
   [product-feedback ledger](docs/product-feedback.md) make the project rationale and evidence
-  boundaries explicit. The recorded video and external observations are not yet claimed.
+  boundaries explicit.
+- [PR #22](https://github.com/sujileelea/openai-migration-doctor/pull/22) landed the evidence loop at
+  `639e4648d5e0577dfc2e2cfcacdc33b5187140fe`; all PR checks and both target-branch workflows passed.
+- An 86-second 1080p demo candidate with English narration and burned-in captions was generated from
+  that public revision outside the repository. Its SHA-256 is
+  `c72390791036901b92237cf35738a7f16f9cb74d2ed1c2990c1d299e172cb02a`; no public URL is claimed.
+- Recruitment opened in [issue #4](https://github.com/sujileelea/openai-migration-doctor/issues/4#issuecomment-5438529958)
+  with the privacy boundary and exact study revision. Zero external sessions have been completed.
 
 ## Shipped baseline
 
@@ -103,8 +112,8 @@ acceptance criteria.
 
 - The first repository-local implementation should be #5. It is tied to a known public-corpus
   boundary and requires no external credential or irreversible action.
-- #4 can proceed in parallel only when the owner has recruited participants and approved the
-  privacy boundary.
+- #4 recruitment is open. Begin a session only after a participant is privately scheduled,
+  consented, and assigned one frozen-revision track under the checked-in privacy boundary.
 - Do not start #12 until the owner approves its exact feature and its sources, observation contract,
   per-feature Tier B planner/verifier contract, and relevant #6/#10/#19 dependencies are resolved.
   #11 is independent transcription-rule evidence, not an Assistants prerequisite.
@@ -126,7 +135,7 @@ git pull --ff-only origin develop
 git status --short --branch
 git rev-parse HEAD
 gh issue view 18
-gh issue view 5
+gh issue view 4
 ```
 
 Confirm that the worktree is clean, `develop` equals `origin/develop`, the tracker is open, no
