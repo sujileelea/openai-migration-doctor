@@ -30,8 +30,8 @@
       {
         "url": "https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object",
         "title": "Migrate from prompt objects | OpenAI API",
-        "retrievedAt": "2026-08-26T11:20:21Z",
-        "contentHash": "8e19672fa070abc30cb0e71d73b6be030b98ac2ea984844f619c22e7614a5464"
+        "retrievedAt": "2026-08-27T05:31:40Z",
+        "contentHash": "db63cd1048d1c71d07d0245e4e15aa135e1ff4e7a34d125a57e7b861f565e727"
       }
     ],
     "languages": ["javascript", "typescript", "python"],

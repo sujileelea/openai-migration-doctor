@@ -45,12 +45,13 @@ The deprecation was announced on 2026-07-20 and the deprecated model snapshot is
 
 ## Assistants source provenance
 
-The current product review was retrieved on 2026-08-26 at
-`2026-08-26T11:20:21Z` and is recorded in three dated source artifacts:
+The current product review uses Assistants sources retrieved on 2026-08-26 at
+`2026-08-26T11:20:21Z` and a Prompt migration source re-reviewed after a follow-up drift on
+2026-08-27 at `2026-08-27T05:31:40Z`. It is recorded in three dated source artifacts:
 
 - [`openai-assistants-deprecations-2026-08-26.json`](../data/sources/openai-assistants-deprecations-2026-08-26.json), reviewing [API deprecations](https://developers.openai.com/api/docs/deprecations);
 - [`openai-assistants-migration-2026-08-26.json`](../data/sources/openai-assistants-migration-2026-08-26.json), reviewing the [Assistants migration guide](https://developers.openai.com/api/docs/assistants/migration);
-- [`openai-prompt-object-migration-2026-08-26.json`](../data/sources/openai-prompt-object-migration-2026-08-26.json), reviewing [Migrate from prompt objects](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object).
+- [`openai-prompt-object-migration-2026-08-27.json`](../data/sources/openai-prompt-object-migration-2026-08-27.json), reviewing [Migrate from prompt objects](https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object).
 
 The records hash the exact bytes returned by the corresponding official `.md`
 endpoints. Reviewers can reproduce the upstream hashes with:
@@ -61,12 +62,12 @@ curl -fsSL https://developers.openai.com/api/docs/assistants/migration.md | shas
 curl -fsSL https://developers.openai.com/api/docs/guides/prompting/migrate-from-prompt-object.md | shasum -a 256
 ```
 
-Expected hashes for the 2026-08-26 review, in command order, are:
+Expected hashes for the current mixed-date review, in command order, are:
 
 ```text
 91292bb80f7eb37873c8ee83a02458effc0bf2e770a00ae1567da2faa7e5837a
 0d866515c0d406e6e5a402baad1fe0ad50c10369a5929a47b74e60e487b77775
-8e19672fa070abc30cb0e71d73b6be030b98ac2ea984844f619c22e7614a5464
+db63cd1048d1c71d07d0245e4e15aa135e1ff4e7a34d125a57e7b861f565e727
 ```
 
 The deprecation record states that developers were notified on 2025-08-26 and

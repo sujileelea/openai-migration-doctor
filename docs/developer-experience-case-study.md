@@ -44,8 +44,9 @@ and useful in CI.
 
 Each migration edge points to dated source records and exact official Markdown hashes. A scheduled
 gate detects upstream drift but never changes a rule automatically. On 2026-08-26, the review gate
-detected changes in four current OpenAI documents; the claims and both migration edges were reviewed
-before new records and hashes replaced the active lock.
+detected changes in four current OpenAI documents; on 2026-08-27 it caught another Prompt migration
+change. The affected claims and migration edges were reviewed before new dated records and hashes
+replaced the active lock.
 
 ### 3. Automation follows evidence, not ambition
 

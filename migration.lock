@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "createdAt": "2026-08-26T11:20:21Z",
+  "createdAt": "2026-08-27T05:31:40Z",
   "artifacts": [
     {
       "kind": "source",
@@ -24,8 +24,8 @@
     },
     {
       "kind": "source",
-      "path": "data/sources/openai-prompt-object-migration-2026-08-26.json",
-      "sha256": "bf40a47a33e747a278cfcd6131536603739647d42e875bf43683ced5d23c21c2"
+      "path": "data/sources/openai-prompt-object-migration-2026-08-27.json",
+      "sha256": "b0659562fb12951bc2836f6ed68540eae8c0620bd2a91e1144214e2c12b5555f"
     },
     {
       "kind": "migration",
@@ -35,7 +35,7 @@
     {
       "kind": "migration",
       "path": "data/migrations/assistants-api-to-responses-and-conversations.json",
-      "sha256": "9dcabfa8ada58bdb3bdebc98ac60aa0beb723280ccf777e65889a8ef90b42e7c"
+      "sha256": "009297ccb04bb42409e80765e05241107ce2fdec950e91808acce83047373b5e"
     }
   ]
 }
