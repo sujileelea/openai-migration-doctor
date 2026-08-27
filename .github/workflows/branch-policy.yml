@@ -1,0 +1,24 @@
+name: Branch policy
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-policy:
+    name: branch-policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate source and target branches
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: node scripts/check-branch-policy.mjs --base "$BASE_REF" --head "$HEAD_REF"

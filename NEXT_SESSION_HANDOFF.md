@@ -1,7 +1,11 @@
 # Next Session Handoff
 
-Prepared on 2026-08-08 (Asia/Seoul) for the session following the first reviewed
-Migration Doctor pre-release.
+Updated on 2026-08-27 (Asia/Seoul) with the application-work handoff and protected
+`develop`/`main` branch contract.
+
+> Active application work spans two local branches. Read
+> [`APPLICATION_HANDOFF.md`](APPLICATION_HANDOFF.md) first for the role-aligned objective, exact
+> commits, verified evidence, remote transition sequence, and owner-decision boundaries.
 
 ## Read first
 
@@ -10,7 +14,9 @@ Migration Doctor pre-release.
 3. [`docs/limitations.md`](docs/limitations.md) for unsupported patterns and trust boundaries.
 4. [`docs/safety.md`](docs/safety.md), [`docs/methodology.md`](docs/methodology.md), and
    [`docs/rule-authoring.md`](docs/rule-authoring.md) before changing a rule or verifier.
-5. [GitHub issue #18](https://github.com/sujileelea/openai-migration-doctor/issues/18) for the
+5. [`docs/branching-strategy.md`](docs/branching-strategy.md) before creating a branch or pull
+   request.
+6. [GitHub issue #18](https://github.com/sujileelea/openai-migration-doctor/issues/18) for the
    live next-phase tracker.
 
 `CODEX_HANDOFF.md` is the historical bootstrap plan. It explains why the architecture exists, but
@@ -96,16 +102,16 @@ a separately reviewed product contract.
 Run these commands before editing:
 
 ```bash
-git switch main
-git pull --ff-only
+git switch develop
+git pull --ff-only origin develop
 git status --short --branch
 git rev-parse HEAD
 gh issue view 18
 gh issue view 5
 ```
 
-Confirm that the worktree is clean, `main` equals `origin/main`, the tracker is open, no earlier PR
-is still active, and no required workflow is queued. Then create one scoped branch:
+Confirm that the worktree is clean, `develop` equals `origin/develop`, the tracker is open, no
+earlier PR is still active, and no required workflow is queued. Then create one scoped branch:
 
 ```bash
 git switch -c feat/reviewed-cross-file-binding
@@ -157,17 +163,20 @@ repository code.
 
 ## Protected merge procedure
 
-`main` requires a pull request and enforces the same rules for administrators:
+`develop` is the default integration branch and `main` contains released source only. Both require
+a pull request and enforce the same rules for administrators:
 
-- strict, up-to-date required checks: `verify`, `Migration audit (ubuntu-latest)`, and
+- strict, up-to-date required checks: `branch-policy`, `verify`, `Migration audit (ubuntu-latest)`, and
   `Migration audit (macos-latest)`;
-- linear history and resolved conversations;
+- resolved conversations;
 - force pushes and branch deletion disabled.
 
-Use a short branch, scoped English commits, and the PR template. Push the branch, open a PR, wait
-for every required check, resolve review threads, and squash merge. Never direct-push to `main`.
-After merge, pull `main`, confirm `HEAD == origin/main`, and wait for any new `main` workflow runs
-before reporting completion.
+Use a short typed branch, scoped English commits, and the PR template. Ordinary working branches
+target `develop` and are squash-merged. Only `release/*` and `hotfix/*` target `main`; they retain a
+merge commit and flow back into `develop`. Never direct-push to either protected branch. After a
+merge, pull its target, confirm local and remote HEAD match, and wait for the target-branch workflow
+runs before reporting completion. The full topology is defined in
+[`docs/branching-strategy.md`](docs/branching-strategy.md).
 
 Private vulnerability reporting, Dependabot alerts/security updates, secret scanning, and push
 protection were enabled at handoff. Recheck them before a security or release claim. Signed commits,

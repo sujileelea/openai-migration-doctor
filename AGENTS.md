@@ -16,6 +16,14 @@ corepack pnpm test
 corepack pnpm validate:sarif
 ```
 
+## Branches
+
+- Read `docs/branching-strategy.md` before changing the repository.
+- Start routine work from `develop` and target `develop` from a scoped, lowercase typed branch.
+- Keep `main` release-only. Only `release/*` and `hotfix/*` may target it.
+- Never push directly to `develop` or `main`. Do not push, open a pull request, merge, tag, publish,
+  or change repository settings without explicit owner approval.
+
 ## Invariants
 
 - Keep dependencies inward: `core` must not import CLI, reporters, language adapters, or Codex.

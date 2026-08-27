@@ -18,6 +18,7 @@
     "test": "tsc -b --pretty false && vitest run",
     "test:watch": "vitest",
     "benchmark": "tsc -b benchmarks --pretty false && node benchmarks/dist/run.js",
+    "branch:check": "node scripts/check-branch-policy.mjs",
     "python:lock:check": "uv lock --check --project packages/language-python",
     "python:sync": "uv sync --project packages/language-python --locked",
     "python:check": "uv run --project packages/language-python --locked python -m compileall -q packages/language-python/python",
