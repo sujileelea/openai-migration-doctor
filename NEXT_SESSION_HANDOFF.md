@@ -4,7 +4,7 @@ Updated on 2026-08-27 (Asia/Seoul) after follow-up source-drift recovery, prepar
 external Developer Experience evidence loop, and establishment of the protected `develop`/`main`
 branch contract.
 
-> Active application work spans two local branches. Read
+> Branch governance is live and the Developer Experience evidence branch is ready for review. Read
 > [`APPLICATION_HANDOFF.md`](APPLICATION_HANDOFF.md) first for the role-aligned objective, exact
 > commits, verified evidence, remote transition sequence, and owner-decision boundaries.
 
